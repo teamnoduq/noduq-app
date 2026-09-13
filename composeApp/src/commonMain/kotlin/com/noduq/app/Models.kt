@@ -29,6 +29,7 @@ data class OrganizationDto(
     val id: String,
     val name: String,
     val smsPhone: String? = null,
+    val merchantLast4: String? = null,
 )
 
 @Serializable

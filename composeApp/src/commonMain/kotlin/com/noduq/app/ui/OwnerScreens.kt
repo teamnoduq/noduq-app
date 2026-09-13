@@ -123,7 +123,7 @@ fun PaymentsScreen(vm: AppViewModel) {
     ) {
         Text("Pagos", style = androidx.compose.material3.MaterialTheme.typography.headlineLarge)
         Text(
-            "Aquí llega el aviso cuando confirmen el QR de Bancolombia. Todavía no hay ingest: esta pantalla espera de verdad.",
+            "Aquí llega el aviso cuando confirmen el QR. NODUQ lee el mensaje tal cual llega, de los remitentes de Bancolombia.",
             color = NoduqColors.muted,
             fontSize = 16.sp,
             lineHeight = 24.sp,

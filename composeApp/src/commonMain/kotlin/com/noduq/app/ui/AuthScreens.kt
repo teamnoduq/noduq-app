@@ -167,7 +167,7 @@ fun OwnerRegisterScreen(vm: AppViewModel) {
     var confirm by rememberSaveable { mutableStateOf("") }
     AuthScaffold(
         title = "Crear cuenta",
-        lede = "Correo y contraseña. Después el nombre de la organización.",
+        lede = "Correo y contraseña. Después el nombre del comercio.",
         onBack = { vm.go(Screen.OwnerLogin) },
     ) {
         NoduqField(email, { email = it }, "Correo", keyboardType = KeyboardType.Email, enabled = !vm.busy)
@@ -204,8 +204,8 @@ fun OwnerSetupScreen(vm: AppViewModel) {
     var org by rememberSaveable { mutableStateOf("") }
     var name by rememberSaveable { mutableStateOf("") }
     AuthScaffold(
-        title = "Tu organización",
-        lede = "Así aparece en NODUQ. Después puedes crear empleados.",
+        title = "Tu comercio",
+        lede = "Así aparece en NODUQ. Los avisos salen de los remitentes de Bancolombia; no hay que pegar números de cuenta.",
         onBack = { vm.ownerSignOut() },
     ) {
         NoduqField(
@@ -225,7 +225,7 @@ fun OwnerSetupScreen(vm: AppViewModel) {
         )
         vm.error?.let { Banner(it) }
         PrimaryButton(
-            text = if (vm.busy) "Guardando…" else "Continuar",
+            text = if (vm.busy) "Guardando…" else "Abrir el panel",
             loading = vm.busy,
             onClick = { vm.bootstrap(org, name) },
         )
