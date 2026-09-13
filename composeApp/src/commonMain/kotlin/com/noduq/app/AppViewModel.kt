@@ -24,6 +24,7 @@ class AppViewModel(
     private val tokens: TokenStore,
     private val api: NoduqApi,
     private val supabase: SupabaseAuthApi,
+    private val googleAuth: GoogleAuth,
 ) : ViewModel() {
     var screen by mutableStateOf<Screen>(Screen.Boot)
         private set
@@ -74,6 +75,17 @@ class AppViewModel(
             val access = session.accessToken ?: throw ApiException(401, "AUTH", "Correo o contraseña incorrectos.")
             tokens.saveOwner(access, session.refreshToken, session.user?.email ?: mail)
             ownerEmail = session.user?.email ?: mail
+            loadOwnerWorkspace(access)
+        }
+    }
+
+    fun ownerGoogle() {
+        launchWork("Abriendo Google…") {
+            val session = googleAuth.signIn()
+            val access = session.accessToken ?: throw ApiException(401, "AUTH", "No se pudo entrar con Google.")
+            val email = session.user?.email
+            tokens.saveOwner(access, session.refreshToken, email)
+            ownerEmail = email
             loadOwnerWorkspace(access)
         }
     }
@@ -401,6 +413,10 @@ class AppViewModel(
             info = null
             try {
                 block()
+            } catch (cause: kotlinx.coroutines.CancellationException) {
+                throw cause
+            } catch (_: AuthCancelledException) {
+                error = null
             } catch (cause: Exception) {
                 error = cause.message ?: "No se pudo completar."
             } finally {

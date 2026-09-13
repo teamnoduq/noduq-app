@@ -4,6 +4,11 @@ interface AppConfig {
     val apiBaseUrl: String
     val supabaseUrl: String
     val supabaseAnonKey: String
+    val googleWebClientId: String
+}
+
+interface GoogleAuth {
+    suspend fun signIn(): SupabaseSession
 }
 
 interface TokenStore {
@@ -25,6 +30,7 @@ object AppGraph {
     lateinit var tokens: TokenStore
     lateinit var api: NoduqApi
     lateinit var supabase: SupabaseAuthApi
+    lateinit var googleAuth: GoogleAuth
     lateinit var clipboard: Clipboard
 }
 

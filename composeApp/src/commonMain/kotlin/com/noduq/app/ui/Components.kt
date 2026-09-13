@@ -141,6 +141,67 @@ fun GhostButton(
 }
 
 @Composable
+fun GoogleButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    loading: Boolean = false,
+) {
+    Button(
+        onClick = onClick,
+        enabled = enabled && !loading,
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp),
+        shape = ButtonShape,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = NoduqColors.raised,
+            contentColor = NoduqColors.ink,
+            disabledContainerColor = NoduqColors.raised.copy(alpha = 0.6f),
+            disabledContentColor = NoduqColors.muted,
+        ),
+        border = androidx.compose.foundation.BorderStroke(1.dp, NoduqColors.line),
+    ) {
+        if (loading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(22.dp),
+                color = NoduqColors.cyan,
+                strokeWidth = 2.dp,
+            )
+            Spacer(Modifier.width(10.dp))
+        }
+        Text(
+            if (loading) "Abriendo Google…" else "Continuar con Google",
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 16.sp,
+        )
+    }
+}
+
+@Composable
+fun OrDivider() {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(
+            Modifier
+                .weight(1f)
+                .height(1.dp)
+                .background(NoduqColors.line),
+        )
+        Text("o", color = NoduqColors.muted, fontSize = 13.sp)
+        Box(
+            Modifier
+                .weight(1f)
+                .height(1.dp)
+                .background(NoduqColors.line),
+        )
+    }
+}
+
+@Composable
 fun QuietButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
     TextButton(
         onClick = onClick,

@@ -9,7 +9,7 @@ import com.noduq.app.ui.NoduqRoot
 @Composable
 fun App() {
     val vm = viewModel {
-        AppViewModel(AppGraph.tokens, AppGraph.api, AppGraph.supabase)
+        AppViewModel(AppGraph.tokens, AppGraph.api, AppGraph.supabase, AppGraph.googleAuth)
     }
     LaunchedEffect(Unit) { vm.start() }
     NoduqTheme {

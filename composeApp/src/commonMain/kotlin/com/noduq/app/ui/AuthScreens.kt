@@ -80,7 +80,7 @@ fun RoleGateScreen(vm: AppViewModel) {
                 style = androidx.compose.material3.MaterialTheme.typography.displayLarge,
             )
             Text(
-                "Correo y contraseña, o usuario y código.",
+                "Correo y Google, o usuario y código.",
                 color = NoduqColors.muted,
                 fontSize = 17.sp,
                 lineHeight = 26.sp,
@@ -107,7 +107,7 @@ fun RoleGateScreen(vm: AppViewModel) {
                 Kicker("Cuenta")
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Correo y contraseña",
+                    "Correo, contraseña o Google",
                     color = NoduqColors.ink,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 22.sp,
@@ -131,7 +131,7 @@ fun OwnerLoginScreen(vm: AppViewModel) {
     var password by rememberSaveable { mutableStateOf("") }
     AuthScaffold(
         title = "Entrar",
-        lede = "Correo y contraseña. Si aún no tienes cuenta, créala aquí.",
+        lede = "Correo y contraseña, o Google. Si aún no tienes cuenta, créala aquí.",
         onBack = { vm.go(Screen.RoleGate) },
     ) {
         NoduqField(
@@ -156,7 +156,12 @@ fun OwnerLoginScreen(vm: AppViewModel) {
             loading = vm.busy,
             onClick = { vm.ownerSignIn(email, password) },
         )
-        GhostButton("Crear cuenta", onClick = { vm.go(Screen.OwnerRegister) })
+        OrDivider()
+        GoogleButton(
+            onClick = { vm.ownerGoogle() },
+            enabled = !vm.busy,
+        )
+        GhostButton("Crear cuenta", onClick = { vm.go(Screen.OwnerRegister) }, enabled = !vm.busy)
     }
 }
 
@@ -167,7 +172,7 @@ fun OwnerRegisterScreen(vm: AppViewModel) {
     var confirm by rememberSaveable { mutableStateOf("") }
     AuthScaffold(
         title = "Crear cuenta",
-        lede = "Correo y contraseña. Después el nombre del comercio.",
+        lede = "Correo y contraseña, o Google. Después el nombre del comercio.",
         onBack = { vm.go(Screen.OwnerLogin) },
     ) {
         NoduqField(email, { email = it }, "Correo", keyboardType = KeyboardType.Email, enabled = !vm.busy)
@@ -194,6 +199,11 @@ fun OwnerRegisterScreen(vm: AppViewModel) {
             text = if (vm.busy) "Creando…" else "Crear cuenta",
             loading = vm.busy,
             onClick = { vm.ownerSignUp(email, password, confirm) },
+        )
+        OrDivider()
+        GoogleButton(
+            onClick = { vm.ownerGoogle() },
+            enabled = !vm.busy,
         )
         QuietButton("Ya tengo cuenta", onClick = { vm.go(Screen.OwnerLogin) })
     }

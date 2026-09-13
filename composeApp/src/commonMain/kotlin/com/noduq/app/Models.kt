@@ -111,9 +111,24 @@ data class SupabasePasswordGrant(
 )
 
 @Serializable
+data class SupabaseIdTokenGrant(
+    val provider: String = "google",
+    @SerialName("id_token") val idToken: String,
+    val nonce: String? = null,
+)
+
+@Serializable
+data class SupabasePkceGrant(
+    @SerialName("auth_code") val authCode: String,
+    @SerialName("code_verifier") val codeVerifier: String,
+)
+
+@Serializable
 data class SupabaseRefreshGrant(
     @SerialName("refresh_token") val refreshToken: String,
 )
+
+class AuthCancelledException : Exception()
 
 @Serializable
 data class SupabaseUser(

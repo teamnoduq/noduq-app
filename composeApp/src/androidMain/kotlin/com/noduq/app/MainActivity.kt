@@ -1,5 +1,6 @@
 package com.noduq.app
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -14,6 +15,20 @@ class MainActivity : ComponentActivity() {
             isAppearanceLightStatusBars = false
             isAppearanceLightNavigationBars = false
         }
+        googleAuth()?.attach(this)
         setContent { App() }
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        googleAuth()?.onIntent(intent)
+    }
+
+    override fun onDestroy() {
+        googleAuth()?.detach(this)
+        super.onDestroy()
+    }
+
+    private fun googleAuth(): AndroidGoogleAuth? = AppGraph.googleAuth as? AndroidGoogleAuth
 }

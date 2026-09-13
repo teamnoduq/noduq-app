@@ -113,6 +113,12 @@ class SupabaseAuthApi(
     suspend fun signIn(email: String, password: String): SupabaseSession =
         auth("token?grant_type=password", SupabasePasswordGrant(email, password))
 
+    suspend fun signInWithGoogleIdToken(idToken: String, nonce: String): SupabaseSession =
+        auth("token?grant_type=id_token", SupabaseIdTokenGrant(idToken = idToken, nonce = nonce))
+
+    suspend fun exchangePkce(authCode: String, codeVerifier: String): SupabaseSession =
+        auth("token?grant_type=pkce", SupabasePkceGrant(authCode = authCode, codeVerifier = codeVerifier))
+
     suspend fun signUp(email: String, password: String): SupabaseSession =
         auth("signup", SupabasePasswordGrant(email, password))
 
@@ -195,6 +201,10 @@ internal fun supabaseAuthMessage(code: String, raw: String): String {
             "El registro está cerrado en Supabase."
         "weak_password" ->
             "La contraseña es demasiado débil. Prueba con una más larga."
+        "bad_id_token", "invalid_id_token", "unexpected_audience" ->
+            "Google no aceptó esta app. Revisa el Client ID web."
+        "identity_already_exists" ->
+            "Ese Google ya está ligado a otra cuenta."
         else -> null
     }
     if (mapped != null) return mapped

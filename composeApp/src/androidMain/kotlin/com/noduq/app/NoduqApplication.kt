@@ -11,6 +11,10 @@ class NoduqApplication : Application() {
         AppGraph.clipboard = AndroidClipboard(this)
         AppGraph.api = NoduqApi(http, AndroidAppConfig)
         AppGraph.supabase = SupabaseAuthApi(client = http, config = AndroidAppConfig)
+        AppGraph.googleAuth = AndroidGoogleAuth(
+            supabase = AppGraph.supabase,
+            config = AndroidAppConfig,
+        )
     }
 }
 
@@ -18,4 +22,5 @@ object AndroidAppConfig : AppConfig {
     override val apiBaseUrl: String = BuildConfig.API_BASE_URL.trimEnd('/')
     override val supabaseUrl: String = BuildConfig.SUPABASE_URL.trimEnd('/')
     override val supabaseAnonKey: String = BuildConfig.SUPABASE_ANON_KEY
+    override val googleWebClientId: String = BuildConfig.GOOGLE_WEB_CLIENT_ID.trim()
 }

@@ -1,1 +1,4 @@
-# Debug/release identity sprint: minify is off. Keep empty for later.
+-if class androidx.credentials.CredentialManager
+-keep class androidx.credentials.playservices.** {
+  *;
+}

@@ -19,11 +19,12 @@ val localProperties = Properties().apply {
 fun quotedBuildConfig(value: String): String =
     "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
 
-val apiBaseUrl = localProperties.getProperty("noduq.apiBaseUrl") ?: "http://10.0.2.2:8080"
+val apiBaseUrl = localProperties.getProperty("noduq.apiBaseUrl") ?: "https://api.noduq.app"
 val supabaseUrl = localProperties.getProperty("noduq.supabaseUrl")
     ?: "https://gthbmxvefblwajeposrx.supabase.co"
 val supabaseAnonKey = localProperties.getProperty("noduq.supabaseAnonKey")
     ?: "sb_publishable_oZgre9UW59JoWQitZylUXQ_iJ0Yj436"
+val googleWebClientId = localProperties.getProperty("noduq.googleWebClientId").orEmpty()
 
 kotlin {
     androidTarget {
@@ -36,6 +37,10 @@ kotlin {
         androidMain.dependencies {
             implementation(compose.preview)
             implementation(libs.androidx.activity.compose)
+            implementation(libs.androidx.browser)
+            implementation(libs.androidx.credentials)
+            implementation(libs.androidx.credentials.play.services)
+            implementation(libs.googleid)
             implementation(libs.ktor.client.okhttp)
             implementation(libs.androidx.security.crypto)
         }
@@ -79,6 +84,7 @@ android {
         buildConfigField("String", "API_BASE_URL", quotedBuildConfig(apiBaseUrl))
         buildConfigField("String", "SUPABASE_URL", quotedBuildConfig(supabaseUrl))
         buildConfigField("String", "SUPABASE_ANON_KEY", quotedBuildConfig(supabaseAnonKey))
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", quotedBuildConfig(googleWebClientId))
     }
 
     packaging {
