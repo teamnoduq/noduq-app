@@ -2,6 +2,8 @@ package com.noduq.app
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.noduq.app.theme.NoduqTheme
 import com.noduq.app.ui.NoduqRoot
@@ -12,6 +14,7 @@ fun App() {
         AppViewModel(AppGraph.tokens, AppGraph.api, AppGraph.supabase, AppGraph.googleAuth)
     }
     LaunchedEffect(Unit) { vm.start() }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.onForeground() }
     NoduqTheme {
         NoduqRoot(vm)
     }

@@ -5,6 +5,7 @@
 /build/
 **/build/
 /local.properties
+/composeApp/google-services.json
 /captures/
 *.apk
 *.ap_

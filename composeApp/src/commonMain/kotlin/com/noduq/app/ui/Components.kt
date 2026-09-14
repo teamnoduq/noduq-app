@@ -214,6 +214,30 @@ fun QuietButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
 }
 
 @Composable
+fun ChipButton(
+    text: String,
+    selected: Boolean,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    TextButton(
+        onClick = onClick,
+        enabled = enabled,
+        shape = RoundedCornerShape(99.dp),
+        colors = ButtonDefaults.textButtonColors(
+            containerColor = if (selected) NoduqColors.cyan else Color.Transparent,
+            contentColor = if (selected) NoduqColors.night else NoduqColors.cyan,
+        ),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            NoduqColors.cyan.copy(alpha = if (selected) 1f else 0.4f),
+        ),
+    ) {
+        Text(text, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium, fontSize = 13.sp)
+    }
+}
+
+@Composable
 fun NoduqField(
     value: String,
     onValueChange: (String) -> Unit,

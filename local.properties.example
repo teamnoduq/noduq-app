@@ -3,3 +3,4 @@ noduq.apiBaseUrl=https://api.noduq.app
 noduq.supabaseUrl=https://gthbmxvefblwajeposrx.supabase.co
 noduq.supabaseAnonKey=sb_publishable_oZgre9UW59JoWQitZylUXQ_iJ0Yj436
 noduq.googleWebClientId=
+noduq.revenueCatApiKey=

@@ -162,6 +162,7 @@ fun OwnerLoginScreen(vm: AppViewModel) {
             enabled = !vm.busy,
         )
         GhostButton("Crear cuenta", onClick = { vm.go(Screen.OwnerRegister) }, enabled = !vm.busy)
+        QuietButton("Olvidé mi contraseña", onClick = { vm.go(Screen.OwnerForgotPassword) }, enabled = !vm.busy)
     }
 }
 
@@ -235,10 +236,94 @@ fun OwnerSetupScreen(vm: AppViewModel) {
         )
         vm.error?.let { Banner(it) }
         PrimaryButton(
-            text = if (vm.busy) "Guardando…" else "Abrir el panel",
+            text = if (vm.busy) "Guardando…" else "Continuar",
             loading = vm.busy,
             onClick = { vm.bootstrap(org, name) },
         )
+    }
+}
+
+@Composable
+fun OwnerForgotPasswordScreen(vm: AppViewModel) {
+    var email by rememberSaveable { mutableStateOf("") }
+    AuthScaffold(
+        title = "Restablecer contraseña",
+        lede = "Te escribimos un enlace. Lo abres y eliges la clave nueva.",
+        onBack = { vm.go(Screen.OwnerLogin) },
+    ) {
+        NoduqField(
+            email,
+            { email = it },
+            "Correo",
+            keyboardType = KeyboardType.Email,
+            enabled = !vm.busy,
+        )
+        vm.error?.let { Banner(it) }
+        vm.info?.let { Banner(it, tone = "ok") }
+        PrimaryButton(
+            text = if (vm.busy) "Enviando…" else "Enviar enlace",
+            loading = vm.busy,
+            onClick = { vm.requestPasswordReset(email) },
+        )
+    }
+}
+
+@Composable
+fun OwnerPlanScreen(vm: AppViewModel) {
+    AuthScaffold(
+        title = "Activa NODUQ",
+        lede = "SMS del 85540 y correo de Bancolombia. $38.900 al mes. Si sales ahora, volvemos aquí hasta que el plan quede pago.",
+        onBack = { vm.ownerSignOut() },
+        kicker = "Plan",
+    ) {
+        Text(
+            "Android · SMS + correo",
+            color = NoduqColors.ink,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 20.sp,
+        )
+        Text(
+            "El mostrador ve el aviso en cuanto llega el mensaje. El correo confirma el mismo pago.",
+            color = NoduqColors.muted,
+            fontSize = 16.sp,
+            lineHeight = 24.sp,
+        )
+        vm.error?.let { Banner(it) }
+        PrimaryButton(
+            text = if (vm.busy) "Activando…" else "Activar plan",
+            loading = vm.busy,
+            onClick = { vm.buyPlan() },
+        )
+    }
+}
+
+@Composable
+fun OwnerPermissionsScreen(vm: AppViewModel) {
+    AuthScaffold(
+        title = "Permisos del teléfono",
+        lede = "Sin avisos y sin SMS del 85540, el mostrador no se entera del QR.",
+        onBack = { vm.ownerSignOut() },
+        kicker = "Onboarding",
+    ) {
+        PermissionCard(
+            askSms = true,
+            notifications = vm.notificationsAllowed,
+            sms = vm.smsAllowed,
+            onAskNotifications = { vm.askNotifications() },
+            onAskSms = { vm.askSms() },
+            onOpenSettings = { vm.openSystemSettings() },
+        )
+        vm.error?.let { Banner(it) }
+        if (vm.needsPermissionSetup(askSms = true)) {
+            Text(
+                "Concédelos para seguir. Si los bloqueaste, ábrelos en ajustes.",
+                color = NoduqColors.muted,
+                fontSize = 15.sp,
+                lineHeight = 22.sp,
+            )
+        } else {
+            PrimaryButton("Entrar al mostrador", onClick = { vm.finishPermissions() })
+        }
     }
 }
 

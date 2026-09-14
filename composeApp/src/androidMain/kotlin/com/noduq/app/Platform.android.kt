@@ -12,7 +12,14 @@ import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
+import java.time.Instant
+import java.time.LocalDate
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 actual fun createHttpClient(): HttpClient = HttpClient(OkHttp) {
@@ -53,8 +60,113 @@ class AndroidClipboard(private val context: Context) : Clipboard {
     }
 }
 
+class AndroidLinkOpener(private val context: Context) : LinkOpener {
+    override fun open(url: String) {
+        val parsed = android.net.Uri.parse(url)
+        val tabs = androidx.browser.customtabs.CustomTabsIntent.Builder().build()
+        tabs.intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching {
+            tabs.launchUrl(context, parsed)
+        }.onFailure {
+            context.startActivity(
+                android.content.Intent(android.content.Intent.ACTION_VIEW, parsed)
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        }
+    }
+}
+
+actual fun isoInstant(millis: Long): String = Instant.ofEpochMilli(millis).toString()
+
+actual fun clockLabel(iso: String?): String {
+    val moment = readInstant(iso) ?: return ""
+    return CLOCK.format(moment.atZone(ZoneId.systemDefault()))
+}
+
+actual fun dayLabel(iso: String?): String {
+    val moment = readInstant(iso) ?: return ""
+    val day = moment.atZone(ZoneId.systemDefault()).toLocalDate()
+    val today = LocalDate.now(ZoneId.systemDefault())
+    return when (day) {
+        today -> "hoy"
+        today.minusDays(1) -> "ayer"
+        else -> DAY.format(day)
+    }
+}
+
+private val SPANISH = Locale("es", "CO")
+private val CLOCK = DateTimeFormatter.ofPattern("h:mm a", SPANISH)
+private val DAY = DateTimeFormatter.ofPattern("d MMM", SPANISH)
+
+/** Tolerant on purpose: the server may spell instants as text or as epoch seconds. */
+private fun readInstant(iso: String?): Instant? {
+    val raw = iso?.trim().orEmpty()
+    if (raw.isEmpty()) return null
+    runCatching { return Instant.parse(raw) }
+    runCatching { return OffsetDateTime.parse(raw).toInstant() }
+    runCatching { return Instant.ofEpochMilli((raw.toDouble() * 1000).toLong()) }
+    return null
+}
+
+internal fun securePrefs(context: Context, file: String): SharedPreferences {
+    return try {
+        val master = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        EncryptedSharedPreferences.create(
+            context,
+            file,
+            master,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+        )
+    } catch (_: Exception) {
+        context.getSharedPreferences(file + "_fallback", Context.MODE_PRIVATE)
+    }
+}
+
+/**
+ * Bank texts that have not reached the server yet, kept encrypted because they name the
+ * customer who paid.
+ */
+class AndroidPendingSmsStore(context: Context) : PendingSmsStore {
+    private val prefs = securePrefs(context, "noduq_pending_sms")
+
+    override fun keep(sender: String, message: String, sentAtMillis: Long) {
+        val next = (waiting() + PendingSms(sender, message, sentAtMillis)).takeLast(MAX)
+        write(next)
+    }
+
+    override fun waiting(): List<PendingSms> {
+        val raw = prefs.getString(KEY, null) ?: return emptyList()
+        return runCatching { json.decodeFromString(ListSerializer(PendingSms.serializer()), raw) }
+            .getOrDefault(emptyList())
+    }
+
+    override fun forget(entries: List<PendingSms>) {
+        val gone = entries.toSet()
+        write(waiting().filterNot { it in gone })
+    }
+
+    private fun write(entries: List<PendingSms>) {
+        if (entries.isEmpty()) {
+            prefs.edit().remove(KEY).apply()
+        } else {
+            prefs.edit()
+                .putString(KEY, json.encodeToString(ListSerializer(PendingSms.serializer()), entries))
+                .apply()
+        }
+    }
+
+    private companion object {
+        const val KEY = "waiting"
+        const val MAX = 50
+        val json = Json { ignoreUnknownKeys = true }
+    }
+}
+
 class AndroidTokenStore(context: Context) : TokenStore {
-    private val prefs: SharedPreferences = createPrefs(context)
+    private val prefs: SharedPreferences = securePrefs(context, FILE)
 
     override fun ownerAccessToken(): String? = prefs.getString(OWNER_ACCESS, null)
     override fun ownerRefreshToken(): String? = prefs.getString(OWNER_REFRESH, null)
@@ -89,22 +201,5 @@ class AndroidTokenStore(context: Context) : TokenStore {
         const val OWNER_REFRESH = "owner_refresh_token"
         const val OWNER_EMAIL = "owner_email"
         const val EMPLOYEE = "employee_token"
-
-        fun createPrefs(context: Context): SharedPreferences {
-            return try {
-                val master = MasterKey.Builder(context)
-                    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-                    .build()
-                EncryptedSharedPreferences.create(
-                    context,
-                    FILE,
-                    master,
-                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-                )
-            } catch (_: Exception) {
-                context.getSharedPreferences("noduq_secure_fallback", Context.MODE_PRIVATE)
-            }
-        }
     }
 }

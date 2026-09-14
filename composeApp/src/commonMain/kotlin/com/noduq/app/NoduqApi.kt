@@ -62,6 +62,42 @@ class NoduqApi(
         request<Unit>("DELETE", "/v1/employees/$id", token, empty = true)
     }
 
+    suspend fun listPayments(token: String, limit: Int = 30): PaymentFeedDto =
+        request("GET", "/v1/payments?limit=$limit", token)
+
+    suspend fun ingestSms(token: String, body: SmsIngestRequest): SmsIngestResponseDto =
+        request("POST", "/v1/payments/sms", token, body)
+
+    suspend fun registerDevice(token: String, body: RegisterDeviceRequest): DeviceDto =
+        request("POST", "/v1/devices", token, body)
+
+    suspend fun forgetDevice(token: String, pushToken: String) {
+        request<Unit>("POST", "/v1/devices/forget", token, ForgetDeviceRequest(pushToken), empty = true)
+    }
+
+    suspend fun listEmployeePayments(token: String, limit: Int = 30): PaymentFeedDto =
+        request("GET", "/v1/employee/payments?limit=$limit", token)
+
+    suspend fun registerEmployeeDevice(token: String, body: RegisterEmployeeDeviceRequest): DeviceDto =
+        request("POST", "/v1/employee/devices", token, body)
+
+    suspend fun forgetEmployeeDevice(token: String, pushToken: String) {
+        request<Unit>("POST", "/v1/employee/devices/forget", token, ForgetDeviceRequest(pushToken), empty = true)
+    }
+
+    suspend fun gmailStatus(token: String): GmailStatusDto =
+        request("GET", "/v1/gmail", token)
+
+    suspend fun gmailConnect(token: String): GmailConnectDto =
+        request("GET", "/v1/gmail/connect", token)
+
+    suspend fun gmailDisconnect(token: String) {
+        request<Unit>("DELETE", "/v1/gmail", token, empty = true)
+    }
+
+    suspend fun activatePlan(token: String): PlanDto =
+        request("POST", "/v1/billing/activate", token)
+
     suspend fun employeeLogin(username: String, code: String): EmployeeSessionDto =
         request("POST", "/v1/employee/sessions", token = null, body = EmployeeLoginRequest(username, code))
 
@@ -121,6 +157,23 @@ class SupabaseAuthApi(
 
     suspend fun signUp(email: String, password: String): SupabaseSession =
         auth("signup", SupabasePasswordGrant(email, password))
+
+    suspend fun recoverPassword(email: String, redirectTo: String) {
+        val url = config.supabaseUrl.trimEnd('/') + "/auth/v1/recover?redirect_to=$redirectTo"
+        val response = try {
+            client.post(url) {
+                header("apikey", config.supabaseAnonKey)
+                header(HttpHeaders.Authorization, "Bearer ${config.supabaseAnonKey}")
+                contentType(ContentType.Application.Json)
+                setBody(SupabaseRecoverRequest(email))
+            }
+        } catch (_: Exception) {
+            throw ApiException(0, "NETWORK", "No se pudo hablar con el inicio de sesión.")
+        }
+        if (!response.status.isSuccess()) {
+            throw supabaseError(response)
+        }
+    }
 
     suspend fun refresh(refreshToken: String): SupabaseSession =
         auth("token?grant_type=refresh_token", SupabaseRefreshGrant(refreshToken))

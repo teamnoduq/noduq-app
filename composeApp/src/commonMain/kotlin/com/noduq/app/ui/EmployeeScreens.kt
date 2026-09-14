@@ -41,6 +41,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.noduq.app.AppViewModel
+import com.noduq.app.EmployeeSessionDto
 import com.noduq.app.Screen
 import com.noduq.app.formatEmployeeCode
 import com.noduq.app.theme.NoduqColors
@@ -134,59 +135,22 @@ fun WaitingRoomScreen(vm: AppViewModel) {
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(28.dp))
-                    .background(NoduqColors.raised)
-                    .border(1.dp, NoduqColors.cyan.copy(alpha = 0.35f), RoundedCornerShape(28.dp))
-                    .padding(horizontal = 24.dp, vertical = 36.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            Modifier
-                                .size(12.dp)
-                                .alpha(alpha)
-                                .clip(CircleShape)
-                                .background(NoduqColors.cyan),
-                        )
-                        Spacer(Modifier.width(10.dp))
-                        Text(
-                            "ESPERANDO EL AVISO",
-                            color = NoduqColors.cyan,
-                            letterSpacing = 2.sp,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                        )
-                    }
-                    Spacer(Modifier.height(18.dp))
-                    Text(
-                        "El pago ya llegó",
-                        color = NoduqColors.ink,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 36.sp,
-                        lineHeight = 40.sp,
-                        letterSpacing = (-1).sp,
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        "Cuando confirmen el QR de Bancolombia, el aviso aparece aquí. Tú no gestionas empleados: solo recibes la confirmación.",
-                        color = NoduqColors.muted,
-                        fontSize = 16.sp,
-                        lineHeight = 24.sp,
-                    )
-                    Spacer(Modifier.height(22.dp))
-                    session?.let {
-                        Text(it.organization.name, color = NoduqColors.ink, fontWeight = FontWeight.Medium)
-                        Text(
-                            "${it.employee.displayName} · ${it.branch.name}",
-                            color = NoduqColors.muted,
-                            fontSize = 14.sp,
-                        )
-                    }
-                }
+            if (vm.needsPermissionSetup(askSms = false)) {
+                PermissionCard(
+                    askSms = false,
+                    notifications = vm.notificationsAllowed,
+                    sms = vm.smsAllowed,
+                    onAskNotifications = vm::askNotifications,
+                    onAskSms = vm::askSms,
+                    onOpenSettings = vm::openSystemSettings,
+                )
+                Spacer(Modifier.height(16.dp))
+            }
+            val live = vm.freshNotice ?: vm.notices.firstOrNull()
+            if (live != null) {
+                LivePaymentCard(live)
+            } else {
+                WaitingPulse(alpha = alpha, session = session)
             }
         }
         Text(
@@ -195,5 +159,62 @@ fun WaitingRoomScreen(vm: AppViewModel) {
             fontSize = 13.sp,
             modifier = Modifier.padding(22.dp),
         )
+    }
+}
+
+@Composable
+private fun WaitingPulse(alpha: Float, session: EmployeeSessionDto?) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(28.dp))
+            .background(NoduqColors.raised)
+            .border(1.dp, NoduqColors.cyan.copy(alpha = 0.35f), RoundedCornerShape(28.dp))
+            .padding(horizontal = 24.dp, vertical = 36.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier
+                        .size(12.dp)
+                        .alpha(alpha)
+                        .clip(CircleShape)
+                        .background(NoduqColors.cyan),
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    "Esperando el aviso",
+                    color = NoduqColors.cyan,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+            Spacer(Modifier.height(18.dp))
+            Text(
+                "Cuando confirmen el QR",
+                color = NoduqColors.ink,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 32.sp,
+                lineHeight = 36.sp,
+                letterSpacing = (-0.8).sp,
+            )
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "el aviso aparece aquí. Tú no gestionas empleados: solo recibes la confirmación.",
+                color = NoduqColors.muted,
+                fontSize = 16.sp,
+                lineHeight = 24.sp,
+            )
+            Spacer(Modifier.height(22.dp))
+            session?.let {
+                Text(it.organization.name, color = NoduqColors.ink, fontWeight = FontWeight.Medium)
+                Text(
+                    "${it.employee.displayName} · ${it.branch.name}",
+                    color = NoduqColors.muted,
+                    fontSize = 14.sp,
+                )
+            }
+        }
     }
 }

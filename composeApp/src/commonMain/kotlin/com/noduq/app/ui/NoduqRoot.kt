@@ -23,12 +23,16 @@ fun NoduqRoot(vm: AppViewModel) {
             Screen.OwnerLogin -> OwnerLoginScreen(vm)
             Screen.OwnerRegister -> OwnerRegisterScreen(vm)
             Screen.OwnerSetup -> OwnerSetupScreen(vm)
+            Screen.OwnerPlan -> OwnerPlanScreen(vm)
+            Screen.OwnerPermissions -> OwnerPermissionsScreen(vm)
+            Screen.OwnerForgotPassword -> OwnerForgotPasswordScreen(vm)
             is Screen.OwnerHome -> OwnerShell(vm, screen.tab)
             Screen.EmployeeLogin -> EmployeeLoginScreen(vm)
             Screen.EmployeeWait -> WaitingRoomScreen(vm)
         }
         val canBack = vm.screen is Screen.OwnerLogin ||
             vm.screen is Screen.OwnerRegister ||
+            vm.screen is Screen.OwnerForgotPassword ||
             vm.screen is Screen.EmployeeLogin
         BackNavigation(enabled = canBack) { vm.back() }
     }

@@ -15,6 +15,9 @@ sealed interface Screen {
     data object OwnerLogin : Screen
     data object OwnerRegister : Screen
     data object OwnerSetup : Screen
+    data object OwnerPlan : Screen
+    data object OwnerPermissions : Screen
+    data object OwnerForgotPassword : Screen
     data class OwnerHome(val tab: OwnerTab = OwnerTab.Pagos) : Screen
     data object EmployeeLogin : Screen
     data object EmployeeWait : Screen
@@ -44,10 +47,151 @@ class AppViewModel(
     var employeesLoading by mutableStateOf(false)
     var revealed by mutableStateOf<CreatedEmployeeDto?>(null)
 
+    var notices by mutableStateOf<List<PaymentNoticeDto>>(emptyList())
+        private set
+    var noticesLoading by mutableStateOf(false)
+        private set
+    var noticesError by mutableStateOf<String?>(null)
+        private set
+
+    /** The aviso that just landed, so the screen can shout about it once. */
+    var freshNotice by mutableStateOf<PaymentNoticeDto?>(null)
+        private set
+
+    var notificationsAllowed by mutableStateOf(PermissionState.Denied)
+        private set
+    var smsAllowed by mutableStateOf(PermissionState.Denied)
+        private set
+
+    var gmail by mutableStateOf<GmailStatusDto?>(null)
+        private set
+
     val apiBaseUrl: String get() = AppGraph.config.apiBaseUrl
 
+    val readsBankSms: Boolean get() = smsAllowed == PermissionState.Granted
+
+    fun needsSmsSetup(): Boolean = smsAllowed.needsAttention()
+
+    fun needsNotificationSetup(): Boolean = notificationsAllowed.needsAttention()
+
+    fun needsPermissionSetup(askSms: Boolean): Boolean =
+        needsNotificationSetup() || (askSms && needsSmsSetup())
+
+    init {
+        viewModelScope.launch {
+            PaymentSignals.arrivals.collect { loadPayments(quiet = true) }
+        }
+    }
+
     fun start() {
+        readPermissions()
         viewModelScope.launch { restore() }
+    }
+
+    fun readPermissions() {
+        notificationsAllowed = AppGraph.permissions.notifications()
+        smsAllowed = AppGraph.permissions.sms()
+    }
+
+    fun askNotifications() {
+        viewModelScope.launch {
+            notificationsAllowed = AppGraph.permissions.requestNotifications()
+            syncDevice()
+        }
+    }
+
+    fun askSms() {
+        viewModelScope.launch {
+            smsAllowed = AppGraph.permissions.requestSms()
+            syncDevice()
+            // A receipt may have been parked while the app could not read texts yet.
+            if (smsAllowed == PermissionState.Granted) {
+                runCatching { AppGraph.bankSms.flushPending() }
+            }
+        }
+    }
+
+    fun openSystemSettings() {
+        AppGraph.permissions.openSettings()
+    }
+
+    /** The shopkeeper may have granted a permission in system settings while we were away. */
+    fun onForeground() {
+        val smsWas = smsAllowed
+        readPermissions()
+        if (readsBankSms || !needsNotificationSetup()) {
+            syncDevice()
+        }
+        if (smsAllowed == PermissionState.Granted && smsWas != PermissionState.Granted) {
+            viewModelScope.launch { runCatching { AppGraph.bankSms.flushPending() } }
+        }
+        if (screen is Screen.OwnerPermissions || screen is Screen.OwnerPlan) {
+            workspace?.let { screen = ownerDestination() }
+            if (screen is Screen.OwnerHome) onSessionReady()
+        }
+        loadGmail()
+    }
+
+    fun loadGmail() {
+        val token = tokens.ownerAccessToken() ?: return
+        viewModelScope.launch {
+            runCatching {
+                gmail = asOwner { api.gmailStatus(it) }
+            }
+        }
+    }
+
+    fun connectGmail() {
+        launchWork {
+            val connect = asOwner { api.gmailConnect(it) }
+            AppGraph.links.open(connect.authorizationUrl)
+        }
+    }
+
+    fun disconnectGmail() {
+        launchWork {
+            asOwner { token ->
+                api.gmailDisconnect(token)
+            }
+            gmail = gmail?.copy(connected = false, address = null)
+            info = "Gmail se desconectó."
+        }
+    }
+
+    fun loadPayments(quiet: Boolean = false) {
+        val owner = tokens.ownerAccessToken()
+        val employee = tokens.employeeToken()
+        if (owner == null && employee == null) return
+        viewModelScope.launch {
+            if (!quiet) noticesLoading = true
+            noticesError = null
+            try {
+                val feed = if (owner != null) {
+                    asOwner { api.listPayments(it) }
+                } else {
+                    api.listEmployeePayments(employee!!)
+                }
+                val newest = feed.notices.firstOrNull()
+                if (newest != null && newest.id != notices.firstOrNull()?.id && notices.isNotEmpty()) {
+                    freshNotice = newest
+                }
+                notices = feed.notices
+            } catch (cause: Exception) {
+                noticesError = cause.message ?: "No se pudieron cargar los avisos."
+            } finally {
+                noticesLoading = false
+            }
+        }
+    }
+
+    fun dismissFreshNotice() {
+        freshNotice = null
+    }
+
+    private fun syncDevice() {
+        viewModelScope.launch {
+            runCatching { registerThisDevice(smsReader = readsBankSms) }
+        }
     }
 
     fun go(next: Screen) {
@@ -59,6 +203,7 @@ class AppViewModel(
     fun back() {
         when (screen) {
             Screen.OwnerRegister -> go(Screen.OwnerLogin)
+            Screen.OwnerForgotPassword -> go(Screen.OwnerLogin)
             Screen.OwnerLogin, Screen.EmployeeLogin -> go(Screen.RoleGate)
             else -> Unit
         }
@@ -132,7 +277,8 @@ class AppViewModel(
                     organizationName = name,
                 ),
             )
-            screen = Screen.OwnerHome()
+            screen = ownerDestination()
+            if (screen is Screen.OwnerHome) onSessionReady()
         }
     }
 
@@ -208,7 +354,7 @@ class AppViewModel(
         }
     }
 
-    fun saveEmployee(id: String, displayName: String, username: String, onFieldError: (name: String?, user: String?, other: String?) -> Unit) {
+    fun saveEmployee(id: String, displayName: String, username: String, lookbackDays: Int, onFieldError: (name: String?, user: String?, other: String?) -> Unit) {
         val name = displayName.trim()
         val user = username.trim()
         if (name.isBlank()) {
@@ -222,7 +368,7 @@ class AppViewModel(
         val token = requireOwnerToken() ?: return
         launchWork {
             try {
-                val next = api.patchEmployee(token, id, PatchEmployeeRequest(name, user))
+                val next = api.patchEmployee(token, id, PatchEmployeeRequest(name, user, lookbackDays = lookbackDays))
                 employees = employees.map { if (it.id == next.id) next else it }
                 info = "Datos guardados."
             } catch (cause: ApiException) {
@@ -275,11 +421,13 @@ class AppViewModel(
             tokens.saveEmployee(session.token)
             employeeSession = session
             screen = Screen.EmployeeWait
+            onSessionReady()
         }
     }
 
     fun ownerSignOut() {
         viewModelScope.launch {
+            runCatching { forgetThisDevice() }
             tokens.ownerAccessToken()?.let { runCatching { supabase.signOut(it) } }
             tokens.clear()
             resetGuest()
@@ -293,6 +441,7 @@ class AppViewModel(
         }
         val token = requireOwnerToken() ?: return
         launchWork {
+            runCatching { forgetThisDevice() }
             api.deleteMe(token, confirmation)
             runCatching { supabase.signOut(token) }
             tokens.clear()
@@ -303,6 +452,7 @@ class AppViewModel(
 
     fun employeeSignOut() {
         viewModelScope.launch {
+            runCatching { forgetThisDevice() }
             tokens.employeeToken()?.let { runCatching { api.employeeLogout(it) } }
             tokens.clear()
             resetGuest()
@@ -311,6 +461,52 @@ class AppViewModel(
 
     fun dismissReveal() {
         revealed = null
+    }
+
+    private fun ownerDestination(): Screen {
+        val shop = workspace
+        return when {
+            shop == null -> Screen.OwnerSetup
+            !shop.planActive() -> Screen.OwnerPlan
+            needsPermissionSetup(askSms = true) -> Screen.OwnerPermissions
+            else -> Screen.OwnerHome()
+        }
+    }
+
+    fun requestPasswordReset(email: String) {
+        val mail = email.trim()
+        if (mail.isBlank()) {
+            error = "Escribe el correo."
+            return
+        }
+        launchWork {
+            supabase.recoverPassword(mail, "https://noduq.app/recuperar")
+            info = "Te escribimos para cambiar la contraseña. Abre el enlace del correo."
+        }
+    }
+
+    fun buyPlan() {
+        val orgId = workspace?.organization?.id
+        if (orgId.isNullOrBlank()) {
+            error = "Falta el comercio."
+            return
+        }
+        launchWork("Activando…") {
+            AppGraph.billing.logIn(orgId)
+            val bought = AppGraph.billing.purchaseSmsMonthly()
+            if (!bought) return@launchWork
+            val token = requireOwnerToken() ?: return@launchWork
+            val plan = api.activatePlan(token)
+            workspace = workspace?.copy(plan = plan)
+            screen = ownerDestination()
+            if (screen is Screen.OwnerHome) onSessionReady()
+        }
+    }
+
+    fun finishPermissions() {
+        readPermissions()
+        screen = ownerDestination()
+        if (screen is Screen.OwnerHome) onSessionReady()
     }
 
     private suspend fun restore() {
@@ -335,6 +531,7 @@ class AppViewModel(
             if (!employee.isNullOrBlank()) {
                 employeeSession = api.employeeMe(employee)
                 screen = Screen.EmployeeWait
+                onSessionReady()
                 return
             }
             screen = Screen.RoleGate
@@ -360,10 +557,24 @@ class AppViewModel(
         }
     }
 
+    /** Runs an owner call, renewing the Supabase session once if it had just expired. */
+    private suspend fun <T> asOwner(call: suspend (String) -> T): T {
+        val token = tokens.ownerAccessToken()
+            ?: throw ApiException(401, "AUTH", "La sesión se cerró. Vuelve a entrar.")
+        return try {
+            call(token)
+        } catch (cause: ApiException) {
+            if (cause.status != 401) throw cause
+            val refreshed = refreshOwner() ?: throw cause
+            call(refreshed)
+        }
+    }
+
     private suspend fun loadOwnerWorkspace(token: String) {
         try {
             workspace = api.getMe(token)
-            screen = Screen.OwnerHome()
+            screen = ownerDestination()
+            if (screen is Screen.OwnerHome) onSessionReady()
         } catch (cause: ApiException) {
             if (cause.notProvisioned) {
                 screen = Screen.OwnerSetup
@@ -380,6 +591,7 @@ class AppViewModel(
             displayName = created.displayName,
             username = created.username,
             active = created.active,
+            lookbackDays = created.lookbackDays,
         )
         employees = if (employees.any { it.id == next.id }) {
             employees.map { if (it.id == next.id) next else it }
@@ -397,12 +609,28 @@ class AppViewModel(
         return token
     }
 
+    /**
+     * A session just opened on this phone: tell the server where to ring it, pull the feed, and
+     * push out any bank text that was parked while nobody was signed in.
+     */
+    private fun onSessionReady() {
+        readPermissions()
+        syncDevice()
+        loadPayments()
+        loadGmail()
+        viewModelScope.launch { runCatching { AppGraph.bankSms.flushPending() } }
+    }
+
     private fun resetGuest() {
         workspace = null
         employeeSession = null
         employees = emptyList()
         ownerEmail = null
         revealed = null
+        notices = emptyList()
+        freshNotice = null
+        noticesError = null
+        gmail = null
         screen = Screen.RoleGate
     }
 

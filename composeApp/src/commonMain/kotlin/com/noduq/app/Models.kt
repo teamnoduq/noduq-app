@@ -41,7 +41,18 @@ data class WorkspaceDto(
     val organization: OrganizationDto,
     val role: String,
     val branches: List<BranchDto> = emptyList(),
+    val plan: PlanDto? = null,
 )
+
+@Serializable
+data class PlanDto(
+    val entitlement: String? = null,
+    val status: String = "none",
+    val periodEndsAt: String? = null,
+    val active: Boolean = false,
+)
+
+fun WorkspaceDto.planActive(): Boolean = plan?.active == true
 
 @Serializable
 data class EmployeeDto(
@@ -50,6 +61,7 @@ data class EmployeeDto(
     val displayName: String,
     val username: String,
     val active: Boolean,
+    val lookbackDays: Int = 1,
     val createdAt: String? = null,
 )
 
@@ -60,6 +72,7 @@ data class CreatedEmployeeDto(
     val displayName: String,
     val username: String,
     val active: Boolean,
+    val lookbackDays: Int = 1,
     val code: String,
 )
 
@@ -71,6 +84,75 @@ data class EmployeeSessionDto(
     val organization: OrganizationDto,
     val branch: BranchDto,
 )
+
+/**
+ * A payment the bank told NODUQ about. Show [amountLabel]; [amount] is only there for
+ * anything that needs to compare values.
+ */
+@Serializable
+data class PaymentNoticeDto(
+    val id: String,
+    val source: String,
+    val payerName: String? = null,
+    val amount: Double? = null,
+    val amountLabel: String? = null,
+    val currency: String = "COP",
+    val occurredAt: String? = null,
+    val receivedAt: String,
+    val readable: Boolean = false,
+    val confirmedByEmail: Boolean = false,
+)
+
+@Serializable
+data class PaymentFeedDto(val notices: List<PaymentNoticeDto> = emptyList())
+
+@Serializable
+data class RegisterDeviceRequest(
+    val pushToken: String,
+    val platform: String = "android",
+    val smsReader: Boolean = false,
+)
+
+@Serializable
+data class RegisterEmployeeDeviceRequest(
+    val pushToken: String,
+    val platform: String = "android",
+)
+
+@Serializable
+data class ForgetDeviceRequest(val pushToken: String)
+
+@Serializable
+data class DeviceDto(
+    val id: String,
+    val platform: String,
+    val smsReader: Boolean,
+    val lastSeenAt: String,
+)
+
+@Serializable
+data class SmsIngestRequest(
+    val sender: String,
+    val message: String,
+    val sentAt: String? = null,
+)
+
+/** [outcome] is `stored`, `duplicate`, `ignored_sender` or `ignored_other_account`. */
+@Serializable
+data class SmsIngestResponseDto(
+    val outcome: String,
+    val notice: PaymentNoticeDto? = null,
+)
+
+@Serializable
+data class GmailStatusDto(
+    val configured: Boolean = false,
+    val connected: Boolean = false,
+    val address: String? = null,
+)
+
+@Serializable
+data class GmailConnectDto(val authorizationUrl: String)
 
 @Serializable
 data class BootstrapRequest(
@@ -99,10 +181,16 @@ data class PatchEmployeeRequest(
     val displayName: String? = null,
     val username: String? = null,
     val active: Boolean? = null,
+    val lookbackDays: Int? = null,
 )
 
 @Serializable
 data class EmployeeLoginRequest(val username: String, val code: String)
+
+@Serializable
+data class SupabaseRecoverRequest(
+    val email: String,
+)
 
 @Serializable
 data class SupabasePasswordGrant(

@@ -16,6 +16,8 @@ class MainActivity : ComponentActivity() {
             isAppearanceLightNavigationBars = false
         }
         googleAuth()?.attach(this)
+        permissions()?.attach(this)
+        billing()?.attach(this)
         setContent { App() }
     }
 
@@ -27,8 +29,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         googleAuth()?.detach(this)
+        permissions()?.detach()
+        billing()?.detach()
         super.onDestroy()
     }
 
     private fun googleAuth(): AndroidGoogleAuth? = AppGraph.googleAuth as? AndroidGoogleAuth
+
+    private fun permissions(): AndroidPermissions? = AppGraph.permissions as? AndroidPermissions
+
+    private fun billing(): AndroidShopBilling? = AppGraph.billing as? AndroidShopBilling
 }

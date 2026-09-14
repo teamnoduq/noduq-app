@@ -112,51 +112,6 @@ private fun TabItem(label: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-fun PaymentsScreen(vm: AppViewModel) {
-    val org = vm.workspace?.organization?.name
-    Column(
-        Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 22.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text("Pagos", style = androidx.compose.material3.MaterialTheme.typography.headlineLarge)
-        Text(
-            "Aquí llega el aviso cuando confirmen el QR. NODUQ lee el mensaje tal cual llega, de los remitentes de Bancolombia.",
-            color = NoduqColors.muted,
-            fontSize = 16.sp,
-            lineHeight = 24.sp,
-        )
-        Spacer(Modifier.height(12.dp))
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(24.dp))
-                .background(NoduqColors.raised)
-                .border(1.dp, NoduqColors.cyan.copy(alpha = 0.28f), RoundedCornerShape(24.dp))
-                .padding(28.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    LiveDot()
-                    Spacer(Modifier.width(8.dp))
-                    Text("Todavía no hay avisos", color = NoduqColors.ink, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
-                }
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    "Cuando paguen el QR, el aviso aparece aquí${if (org != null) " en $org" else ""}. NODUQ lo muestra; no hace falta el comprobante que manda el cliente.",
-                    color = NoduqColors.muted,
-                    fontSize = 15.sp,
-                    lineHeight = 22.sp,
-                )
-            }
-        }
-    }
-}
-
-@Composable
 fun EmployeesScreen(vm: AppViewModel) {
     LaunchedEffect(Unit) { vm.loadEmployees() }
     var createOpen by rememberSaveable { mutableStateOf(false) }
@@ -230,8 +185,8 @@ fun EmployeesScreen(vm: AppViewModel) {
             employee = employee,
             busy = vm.busy,
             onClose = { editing = null },
-            onSave = { name, user, fields ->
-                vm.saveEmployee(employee.id, name, user, fields)
+            onSave = { name, user, lookback, fields ->
+                vm.saveEmployee(employee.id, name, user, lookback, fields)
             },
         )
         LaunchedEffect(vm.info) {
@@ -380,10 +335,11 @@ private fun EditEmployeeDialog(
     employee: EmployeeDto,
     busy: Boolean,
     onClose: () -> Unit,
-    onSave: (String, String, (String?, String?, String?) -> Unit) -> Unit,
+    onSave: (String, String, Int, (String?, String?, String?) -> Unit) -> Unit,
 ) {
     var name by rememberSaveable(employee.id) { mutableStateOf(employee.displayName) }
     var user by rememberSaveable(employee.id) { mutableStateOf(employee.username) }
+    var lookback by rememberSaveable(employee.id) { mutableStateOf(employee.lookbackDays) }
     var nameError by rememberSaveable { mutableStateOf<String?>(null) }
     var userError by rememberSaveable { mutableStateOf<String?>(null) }
     var other by rememberSaveable { mutableStateOf<String?>(null) }
@@ -397,6 +353,12 @@ private fun EditEmployeeDialog(
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 NoduqField(name, { name = it }, "Nombre", error = nameError, enabled = !busy)
                 NoduqField(user, { user = it }, "Usuario", error = userError, enabled = !busy)
+                Text("Avisos que ve", color = NoduqColors.muted, fontSize = 13.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(1 to "Hoy", 3 to "3 días", 7 to "7 días").forEach { (days, label) ->
+                        ChipButton(label, selected = lookback == days, enabled = !busy, onClick = { lookback = days })
+                    }
+                }
                 other?.let { Banner(it) }
             }
         },
@@ -408,7 +370,7 @@ private fun EditEmployeeDialog(
                     nameError = null
                     userError = null
                     other = null
-                    onSave(name, user) { n, u, o ->
+                    onSave(name, user, lookback) { n, u, o ->
                         nameError = n
                         userError = u
                         other = o
@@ -512,6 +474,29 @@ fun AccountScreen(vm: AppViewModel) {
         Text("Este nombre hay que escribirlo para borrar la cuenta.", color = NoduqColors.muted)
         NoduqField(orgName, { orgName = it }, "Nombre", enabled = !vm.busy)
         PrimaryButton("Guardar", loading = vm.busy, onClick = { vm.saveOrganization(orgName) })
+
+        HorizontalDivider(color = NoduqColors.line)
+        Text("Gmail", fontWeight = FontWeight.SemiBold, fontSize = 20.sp, color = NoduqColors.ink)
+        Text(
+            "El SMS confirma el pago en el mostrador. Gmail es el mismo aviso, más tarde: si cuadra, el pago queda verificado con correo.",
+            color = NoduqColors.muted,
+            fontSize = 15.sp,
+            lineHeight = 22.sp,
+        )
+        when {
+            vm.gmail == null -> Text("…", color = NoduqColors.muted)
+            vm.gmail?.connected == true -> {
+                Text(vm.gmail?.address ?: "Gmail conectado", color = NoduqColors.ink)
+                GhostButton("Soltar Gmail", onClick = { vm.disconnectGmail() }, enabled = !vm.busy)
+            }
+            vm.gmail?.configured == false -> Text(
+                "El servidor todavía no tiene el cliente de Gmail. Cuando esté, el botón aparece aquí.",
+                color = NoduqColors.muted,
+                fontSize = 15.sp,
+                lineHeight = 22.sp,
+            )
+            else -> PrimaryButton("Conectar Gmail", loading = vm.busy, onClick = { vm.connectGmail() })
+        }
 
         HorizontalDivider(color = NoduqColors.line)
         Text("Sesión", fontWeight = FontWeight.SemiBold, fontSize = 20.sp, color = NoduqColors.ink)
