@@ -18,6 +18,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.concurrent.TimeUnit
@@ -96,9 +97,38 @@ actual fun dayLabel(iso: String?): String {
     }
 }
 
+actual fun localDayStartIso(daysAgo: Int): String =
+    LocalDate.now(ZONE).minusDays(daysAgo.toLong()).atStartOfDay(ZONE).toInstant().toString()
+
+actual fun localDayEndExclusiveIso(daysAgo: Int): String =
+    LocalDate.now(ZONE).minusDays(daysAgo.toLong()).plusDays(1).atStartOfDay(ZONE).toInstant().toString()
+
+actual fun localWeekStartIso(): String {
+    val today = LocalDate.now(ZONE)
+    val monday = today.minusDays(((today.dayOfWeek.value + 6) % 7).toLong())
+    return monday.atStartOfDay(ZONE).toInstant().toString()
+}
+
+actual fun dayStartIsoFromUtcMillis(utcMillis: Long): String {
+    val day = Instant.ofEpochMilli(utcMillis).atZone(ZoneOffset.UTC).toLocalDate()
+    return day.atStartOfDay(ZONE).toInstant().toString()
+}
+
+actual fun nextDayStartIsoFromUtcMillis(utcMillis: Long): String {
+    val day = Instant.ofEpochMilli(utcMillis).atZone(ZoneOffset.UTC).toLocalDate()
+    return day.plusDays(1).atStartOfDay(ZONE).toInstant().toString()
+}
+
+actual fun filterDateLabel(iso: String?): String {
+    val moment = readInstant(iso) ?: return "Elegir"
+    return FILTER_DAY.format(moment.atZone(ZONE).toLocalDate())
+}
+
+private val ZONE: ZoneId = ZoneId.systemDefault()
 private val SPANISH = Locale("es", "CO")
 private val CLOCK = DateTimeFormatter.ofPattern("h:mm a", SPANISH)
 private val DAY = DateTimeFormatter.ofPattern("d MMM", SPANISH)
+private val FILTER_DAY = DateTimeFormatter.ofPattern("d MMM yyyy", SPANISH)
 
 /** Tolerant on purpose: the server may spell instants as text or as epoch seconds. */
 private fun readInstant(iso: String?): Instant? {

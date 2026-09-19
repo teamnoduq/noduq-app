@@ -5,6 +5,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 enum class OwnerTab { Pagos, Empleados, Cuenta }
@@ -53,6 +55,15 @@ class AppViewModel(
         private set
     var noticesError by mutableStateOf<String?>(null)
         private set
+    var payQuery by mutableStateOf("")
+        private set
+    var paySince by mutableStateOf<String?>(null)
+        private set
+    var payUntil by mutableStateOf<String?>(null)
+        private set
+    var payRange by mutableStateOf("todos")
+        private set
+    private var paySearchJob: Job? = null
 
     /** The aviso that just landed, so the screen can shout about it once. */
     var freshNotice by mutableStateOf<PaymentNoticeDto?>(null)
@@ -167,7 +178,14 @@ class AppViewModel(
             noticesError = null
             try {
                 val feed = if (owner != null) {
-                    asOwner { api.listPayments(it) }
+                    asOwner {
+                        api.listPayments(
+                            it,
+                            q = payQuery.ifBlank { null },
+                            since = paySince,
+                            until = payUntil,
+                        )
+                    }
                 } else {
                     api.listEmployeePayments(employee!!)
                 }
@@ -186,6 +204,26 @@ class AppViewModel(
 
     fun dismissFreshNotice() {
         freshNotice = null
+    }
+
+    fun setPaySearch(value: String) {
+        payQuery = value
+        paySearchJob?.cancel()
+        paySearchJob = viewModelScope.launch {
+            delay(380)
+            loadPayments(quiet = true)
+        }
+    }
+
+    fun applyPayRange(range: String, since: String?, until: String?) {
+        payRange = range
+        paySince = since
+        payUntil = until
+        loadPayments()
+    }
+
+    fun searchPayments() {
+        loadPayments()
     }
 
     private fun syncDevice() {
@@ -281,6 +319,33 @@ class AppViewModel(
             )
             screen = ownerDestination()
             if (screen is Screen.OwnerHome) onSessionReady()
+        }
+    }
+
+    fun saveAccount(displayName: String, organizationName: String) {
+        val name = displayName.trim()
+        val org = organizationName.trim()
+        if (name.isBlank()) {
+            error = "El nombre es obligatorio."
+            return
+        }
+        if (org.length < 2 || org.length > 80) {
+            error = "El negocio debe tener entre 2 y 80 caracteres."
+            return
+        }
+        val token = requireOwnerToken() ?: return
+        val profileChanged = name != workspace?.profile?.displayName.orEmpty()
+        val orgChanged = org != workspace?.organization?.name.orEmpty()
+        if (!profileChanged && !orgChanged) return
+        launchWork {
+            if (profileChanged) {
+                val profile = api.patchMe(token, PatchNameRequest(name))
+                workspace = workspace?.copy(profile = profile)
+            }
+            if (orgChanged) {
+                workspace = api.patchOrganization(token, PatchOrganizationRequest(org))
+            }
+            info = "Cambios guardados."
         }
     }
 
@@ -632,6 +697,11 @@ class AppViewModel(
         notices = emptyList()
         freshNotice = null
         noticesError = null
+        paySearchJob?.cancel()
+        payQuery = ""
+        paySince = null
+        payUntil = null
+        payRange = "todos"
         gmail = null
         screen = Screen.RoleGate
     }

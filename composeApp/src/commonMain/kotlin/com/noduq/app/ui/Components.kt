@@ -1,7 +1,11 @@
 package com.noduq.app.ui
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -233,7 +237,7 @@ fun QuietButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
         modifier = Modifier.heightIn(min = 48.dp),
         colors = ButtonDefaults.textButtonColors(contentColor = NoduqColors.cyan),
     ) {
-        Text(text, color = NoduqColors.cyan, fontWeight = FontWeight.Medium, fontSize = 15.sp)
+        Text(text, color = NoduqColors.cyan, fontWeight = FontWeight.Medium, fontSize = 16.sp)
     }
 }
 
@@ -366,15 +370,20 @@ fun ChipButton(
         enabled = enabled,
         shape = RoundedCornerShape(99.dp),
         colors = ButtonDefaults.textButtonColors(
-            containerColor = if (selected) NoduqColors.cyan else Color.Transparent,
-            contentColor = if (selected) NoduqColors.night else NoduqColors.cyan,
+            containerColor = if (selected) NoduqColors.cyan else NoduqColors.inset,
+            contentColor = if (selected) NoduqColors.night else Color.White,
         ),
         border = androidx.compose.foundation.BorderStroke(
             1.dp,
             NoduqColors.cyan.copy(alpha = if (selected) 1f else 0.4f),
         ),
     ) {
-        Text(text, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium, fontSize = 13.sp)
+        Text(
+            text,
+            color = if (selected) NoduqColors.night else Color.White,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+            fontSize = 13.sp,
+        )
     }
 }
 
@@ -616,21 +625,47 @@ fun CodeBlock(code: String) {
             text = code,
             fontFamily = FontFamily.Monospace,
             fontWeight = FontWeight.SemiBold,
-            fontSize = 28.sp,
-            letterSpacing = 2.sp,
+            fontSize = 26.sp,
+            letterSpacing = 2.4.sp,
             color = NoduqColors.cyan,
         )
     }
 }
 
 @Composable
-fun LiveDot() {
-    Box(
-        Modifier
-            .size(10.dp)
-            .clip(CircleShape)
-            .background(NoduqColors.cyan),
+fun LiveDot(color: Color = NoduqColors.cyan) {
+    val pulse = rememberInfiniteTransition(label = "live")
+    val alpha by pulse.animateFloat(
+        initialValue = 0.45f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
+        label = "live-alpha",
     )
+    val scale by pulse.animateFloat(
+        initialValue = 0.75f,
+        targetValue = 1.35f,
+        animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
+        label = "live-scale",
+    )
+    Box(Modifier.size(14.dp), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier
+                .size(14.dp)
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                    this.alpha = alpha * 0.35f
+                }
+                .clip(CircleShape)
+                .background(color),
+        )
+        Box(
+            Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(color.copy(alpha = alpha)),
+        )
+    }
 }
 
 @Composable

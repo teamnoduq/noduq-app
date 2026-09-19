@@ -106,6 +106,24 @@ expect fun clockLabel(iso: String?): String
 /** "hoy", "ayer" or "12 sep" for the day a payment landed on. */
 expect fun dayLabel(iso: String?): String
 
+/** Inclusive start of a local calendar day as ISO-8601 instant. 0 = today, 1 = yesterday. */
+expect fun localDayStartIso(daysAgo: Int): String
+
+/** Exclusive end (start of next day) of a local calendar day. */
+expect fun localDayEndExclusiveIso(daysAgo: Int): String
+
+/** Monday 00:00 local, this week. */
+expect fun localWeekStartIso(): String
+
+/** Start of the local day that contains this UTC epoch-milli (DatePicker). */
+expect fun dayStartIsoFromUtcMillis(utcMillis: Long): String
+
+/** Exclusive next local day from a DatePicker UTC milli. */
+expect fun nextDayStartIsoFromUtcMillis(utcMillis: Long): String
+
+/** "19 sep 2026" for a filter field. */
+expect fun filterDateLabel(iso: String?): String
+
 @androidx.compose.runtime.Composable
 expect fun BackNavigation(enabled: Boolean = true, onBack: () -> Unit)
 

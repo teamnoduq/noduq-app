@@ -6,13 +6,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -20,8 +20,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.remember
+import androidx.compose.ui.window.DialogProperties
+import kotlinx.coroutines.delay
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -36,6 +42,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.Icon
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.noduq.app.AppGraph
@@ -52,8 +63,7 @@ fun OwnerShell(vm: AppViewModel, tab: OwnerTab) {
         Modifier
             .fillMaxSize()
             .background(NoduqColors.night)
-            .statusBarsPadding()
-            .navigationBarsPadding(),
+            .statusBarsPadding(),
     ) {
         Column(Modifier.padding(horizontal = 22.dp, vertical = 8.dp)) {
             BrandMark(compact = true)
@@ -74,40 +84,50 @@ fun OwnerShell(vm: AppViewModel, tab: OwnerTab) {
 
 @Composable
 private fun OwnerBottomBar(tab: OwnerTab, onTab: (OwnerTab) -> Unit) {
-    Row(
+    Column(
         Modifier
             .fillMaxWidth()
-            .border(1.dp, NoduqColors.line)
-            .padding(horizontal = 8.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
+            .background(NoduqColors.inset)
+            .windowInsetsPadding(WindowInsets.navigationBars),
     ) {
-        TabItem("Pagos", tab == OwnerTab.Pagos) { onTab(OwnerTab.Pagos) }
-        TabItem("Empleados", tab == OwnerTab.Empleados) { onTab(OwnerTab.Empleados) }
-        TabItem("Cuenta", tab == OwnerTab.Cuenta) { onTab(OwnerTab.Cuenta) }
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(NoduqColors.line),
+        )
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+        ) {
+            TabItem("Pagos", NoduqIcons.Receipt, tab == OwnerTab.Pagos) { onTab(OwnerTab.Pagos) }
+            TabItem("Empleados", NoduqIcons.People, tab == OwnerTab.Empleados) { onTab(OwnerTab.Empleados) }
+            TabItem("Cuenta", NoduqIcons.Profile, tab == OwnerTab.Cuenta) { onTab(OwnerTab.Cuenta) }
+        }
     }
 }
 
 @Composable
-private fun TabItem(label: String, selected: Boolean, onClick: () -> Unit) {
-    val color = if (selected) NoduqColors.cyan else NoduqColors.muted
-    Box(
+private fun TabItem(label: String, icon: ImageVector, selected: Boolean, onClick: () -> Unit) {
+    val color = if (selected) NoduqColors.cyan else NoduqColors.muted.copy(alpha = 0.55f)
+    Column(
         Modifier
-            .heightIn(min = 56.dp)
+            .heightIn(min = 52.dp)
             .clip(RoundedCornerShape(16.dp))
             .clickable(role = Role.Tab, onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        contentAlignment = Alignment.Center,
+            .padding(horizontal = 18.dp, vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(
-                Modifier
-                    .size(width = 18.dp, height = 3.dp)
-                    .clip(RoundedCornerShape(99.dp))
-                    .background(if (selected) NoduqColors.cyan else Color.Transparent),
-            )
-            Spacer(Modifier.height(6.dp))
-            Text(label, color = color, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium, fontSize = 13.sp)
-        }
+        Icon(icon, contentDescription = label, tint = color, modifier = Modifier.size(22.dp))
+        Text(
+            label,
+            color = color,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+            fontSize = 11.sp,
+        )
     }
 }
 
@@ -131,7 +151,7 @@ fun EmployeesScreen(vm: AppViewModel) {
             .padding(bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("Empleados", style = androidx.compose.material3.MaterialTheme.typography.headlineLarge)
+        Text("Empleados", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 32.sp, letterSpacing = (-0.8).sp)
         Text(
             "Cada uno entra con usuario y un código. El código solo se muestra una vez.",
             color = NoduqColors.muted,
@@ -226,6 +246,7 @@ fun EmployeesScreen(vm: AppViewModel) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun EmployeeCard(
     employee: EmployeeDto,
@@ -242,39 +263,75 @@ private fun EmployeeCard(
             .background(NoduqColors.raised)
             .border(1.dp, NoduqColors.line, RoundedCornerShape(18.dp))
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(employee.displayName, color = NoduqColors.ink, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
                 Text(employee.username, color = NoduqColors.muted, fontSize = 14.sp)
             }
-            Text(
-                if (employee.active) "Activo" else "Inactivo",
-                color = if (employee.active) NoduqColors.cyan else NoduqColors.muted,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-            )
+            Row(
+                Modifier
+                    .clip(RoundedCornerShape(99.dp))
+                    .background(
+                        if (employee.active) NoduqColors.ok.copy(alpha = 0.14f)
+                        else NoduqColors.muted.copy(alpha = 0.1f),
+                    )
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Box(
+                    Modifier
+                        .size(7.dp)
+                        .clip(CircleShape)
+                        .background(if (employee.active) NoduqColors.ok else NoduqColors.muted),
+                )
+                Text(
+                    if (employee.active) "Activo" else "Inactivo",
+                    color = if (employee.active) NoduqColors.ok else NoduqColors.muted,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            QuietButton("Editar", enabled = !busy, onClick = onEdit)
-            QuietButton("Nuevo código", enabled = !busy, onClick = onRegen)
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            GhostButton(
-                text = if (employee.active) "Desactivar" else "Activar",
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp),
+        ) {
+            TextAction("Editar", NoduqIcons.Pencil, enabled = !busy, onClick = onEdit)
+            TextAction("Nuevo código", NoduqIcons.Key, enabled = !busy, onClick = onRegen)
+            TextAction(
+                if (employee.active) "Desactivar" else "Activar",
+                if (employee.active) NoduqIcons.Pause else NoduqIcons.Play,
+                enabled = !busy,
                 onClick = onToggle,
-                enabled = !busy,
-                modifier = Modifier.weight(1f),
-            )
-            GhostButton(
-                text = "Borrar",
-                onClick = onDelete,
-                enabled = !busy,
-                danger = true,
-                modifier = Modifier.weight(1f),
             )
         }
+        GhostButton(
+            text = "Borrar",
+            onClick = onDelete,
+            enabled = !busy,
+            danger = true,
+        )
+    }
+}
+
+@Composable
+private fun TextAction(
+    label: String,
+    icon: ImageVector,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    TextButton(
+        onClick = onClick,
+        enabled = enabled,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+    ) {
+        Icon(icon, contentDescription = null, tint = NoduqColors.cyan, modifier = Modifier.size(15.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(label, color = NoduqColors.cyan, fontWeight = FontWeight.Medium, fontSize = 14.sp)
     }
 }
 
@@ -389,7 +446,8 @@ private fun CodeRevealDialog(
     onClose: () -> Unit,
 ) {
     AlertDialog(
-        onDismissRequest = onClose,
+        onDismissRequest = {},
+        properties = DialogProperties(dismissOnClickOutside = false, dismissOnBackPress = false),
         containerColor = NoduqColors.raised,
         titleContentColor = NoduqColors.ink,
         textContentColor = NoduqColors.ink,
@@ -420,8 +478,20 @@ private fun ConfirmDialog(
     onClose: () -> Unit,
     danger: Boolean = false,
 ) {
+    var armed by remember { mutableStateOf(!danger) }
+    LaunchedEffect(danger) {
+        if (danger) {
+            armed = false
+            delay(800)
+            armed = true
+        }
+    }
     AlertDialog(
-        onDismissRequest = onClose,
+        onDismissRequest = { if (!danger) onClose() },
+        properties = DialogProperties(
+            dismissOnClickOutside = !danger,
+            dismissOnBackPress = true,
+        ),
         containerColor = NoduqColors.raised,
         titleContentColor = NoduqColors.ink,
         textContentColor = NoduqColors.ink,
@@ -429,7 +499,12 @@ private fun ConfirmDialog(
         text = { Text(body, color = NoduqColors.muted, fontSize = 15.sp, lineHeight = 22.sp) },
         confirmButton = {
             if (danger) {
-                GhostButton(if (busy) "Borrando…" else confirm, onClick = onConfirm, enabled = !busy, danger = true)
+                GhostButton(
+                    if (busy) "Borrando…" else confirm,
+                    onClick = onConfirm,
+                    enabled = !busy && armed,
+                    danger = true,
+                )
             } else {
                 PrimaryButton(if (busy) "…" else confirm, onClick = onConfirm, loading = busy)
             }
@@ -445,90 +520,98 @@ fun AccountScreen(vm: AppViewModel) {
     var deleteOpen by rememberSaveable { mutableStateOf(false) }
     var confirmation by rememberSaveable { mutableStateOf("") }
 
+    LaunchedEffect(Unit) { vm.loadGmail() }
     LaunchedEffect(vm.workspace) {
         displayName = vm.workspace?.profile?.displayName.orEmpty()
         orgName = vm.workspace?.organization?.name.orEmpty()
     }
+
+    val dirty = displayName.trim() != vm.workspace?.profile?.displayName.orEmpty() ||
+        orgName.trim() != vm.workspace?.organization?.name.orEmpty()
 
     Column(
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 22.dp, vertical = 12.dp)
-            .padding(bottom = 28.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+            .padding(bottom = 36.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Text("Cuenta", style = androidx.compose.material3.MaterialTheme.typography.headlineLarge)
-        Text("Tu nombre, la organización y el cierre de la cuenta.", color = NoduqColors.muted, fontSize = 16.sp)
+        Text(
+            "Cuenta",
+            color = Color.White,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 32.sp,
+            letterSpacing = (-0.8).sp,
+        )
         vm.error?.let { Banner(it) }
         vm.info?.let { Banner(it, "ok") }
 
-        Text("Tu perfil", fontWeight = FontWeight.SemiBold, fontSize = 20.sp, color = NoduqColors.ink)
-        Text("Así te ven en este panel. El correo no se cambia aquí.", color = NoduqColors.muted)
-        NoduqField(vm.ownerEmail.orEmpty(), {}, "Correo", enabled = false)
-        NoduqField(displayName, { displayName = it }, "Tu nombre", enabled = !vm.busy)
-        PrimaryButton("Guardar nombre", loading = vm.busy, onClick = { vm.saveProfile(displayName) })
-
-        HorizontalDivider(color = NoduqColors.line)
-        Text("Organización", fontWeight = FontWeight.SemiBold, fontSize = 20.sp, color = NoduqColors.ink)
-        Text("Este nombre hay que escribirlo para borrar la cuenta.", color = NoduqColors.muted)
-        NoduqField(orgName, { orgName = it }, "Nombre", enabled = !vm.busy)
-        PrimaryButton("Guardar", loading = vm.busy, onClick = { vm.saveOrganization(orgName) })
-
-        HorizontalDivider(color = NoduqColors.line)
-        Text("Gmail", fontWeight = FontWeight.SemiBold, fontSize = 20.sp, color = NoduqColors.ink)
-        Text(
-            "El SMS confirma el pago en el mostrador. Gmail es el mismo aviso, más tarde: si cuadra, el pago queda verificado con correo.",
-            color = NoduqColors.muted,
-            fontSize = 15.sp,
-            lineHeight = 22.sp,
-        )
-        when {
-            vm.gmail == null -> Text("…", color = NoduqColors.muted)
-            vm.gmail?.connected == true -> {
-                Text(vm.gmail?.address ?: "Gmail conectado", color = NoduqColors.ink)
-                GhostButton("Soltar Gmail", onClick = { vm.disconnectGmail() }, enabled = !vm.busy)
+        AccountCard("Perfil y negocio", "Cómo te ven en este local.") {
+            NoduqField(vm.ownerEmail.orEmpty(), {}, "Correo", enabled = false)
+            NoduqField(displayName, { displayName = it }, "Tu nombre", enabled = !vm.busy)
+            NoduqField(orgName, { orgName = it }, "Negocio", enabled = !vm.busy)
+            if (dirty) {
+                PrimaryButton(
+                    "Guardar cambios",
+                    loading = vm.busy,
+                    onClick = { vm.saveAccount(displayName, orgName) },
+                )
             }
-            vm.gmail?.configured == false -> Text(
-                "El servidor todavía no tiene el cliente de Gmail. Cuando esté, el botón aparece aquí.",
-                color = NoduqColors.muted,
-                fontSize = 15.sp,
-                lineHeight = 22.sp,
-            )
-            else -> PrimaryButton("Conectar Gmail", loading = vm.busy, onClick = { vm.connectGmail() })
         }
 
-        HorizontalDivider(color = NoduqColors.line)
-        Text("Sesión", fontWeight = FontWeight.SemiBold, fontSize = 20.sp, color = NoduqColors.ink)
-        Text("Sales de este teléfono. Las sesiones de empleados no se cierran.", color = NoduqColors.muted)
-        GhostButton("Cerrar sesión", onClick = { vm.ownerSignOut() })
+        AccountCard("Sincronización", "Gmail verifica el aviso del banco, más tarde.") {
+            when {
+                vm.gmail == null -> Text("Cargando…", color = NoduqColors.muted, fontSize = 14.sp)
+                vm.gmail?.connected == true -> GmailConnectedRow(
+                    address = vm.gmail?.address ?: "Gmail",
+                    busy = vm.busy,
+                    onDisconnect = { vm.disconnectGmail() },
+                )
+                vm.gmail?.configured == false -> Text(
+                    "Gmail aún no está listo en el servidor.",
+                    color = NoduqColors.muted,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                )
+                else -> PrimaryButton("Conectar Gmail", loading = vm.busy, onClick = { vm.connectGmail() })
+            }
+        }
 
-        HorizontalDivider(color = NoduqColors.line)
-        Text("Borrar cuenta", fontWeight = FontWeight.SemiBold, fontSize = 20.sp, color = NoduqColors.danger)
-        Text(
-            "Se borra la organización, los empleados y el acceso. Para confirmar, escribe el nombre exacto de la organización.",
-            color = NoduqColors.muted,
-        )
-        GhostButton("Borrar cuenta", onClick = { deleteOpen = true }, danger = true)
+        Spacer(Modifier.height(8.dp))
+        AccountCard("Sesión y cuenta") {
+            GhostButton("Cerrar sesión", onClick = { vm.ownerSignOut() })
+            Text(
+                "Borrar cuenta",
+                color = NoduqColors.danger,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 15.sp,
+            )
+            GhostButton("Borrar cuenta", onClick = { deleteOpen = true }, danger = true)
+        }
     }
 
     if (deleteOpen) {
         AlertDialog(
             onDismissRequest = { deleteOpen = false },
+            properties = DialogProperties(dismissOnClickOutside = false),
             containerColor = NoduqColors.raised,
             titleContentColor = NoduqColors.ink,
             textContentColor = NoduqColors.ink,
             title = { Text("Borrar la cuenta") },
             text = {
+                val org = vm.workspace?.organization?.name.orEmpty()
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        "Escribe ${vm.workspace?.organization?.name.orEmpty()} para continuar. Esto no se puede deshacer.",
+                        "Se borra $org, los empleados y el acceso. Para confirmar, escribe el nombre exacto del negocio. Esto no se puede deshacer.",
                         color = NoduqColors.muted,
+                        fontSize = 15.sp,
+                        lineHeight = 22.sp,
                     )
                     NoduqField(
                         confirmation,
                         { confirmation = it },
-                        "Organización",
+                        "Nombre del negocio",
                         imeAction = ImeAction.Done,
                         enabled = !vm.busy,
                     )
@@ -549,5 +632,65 @@ fun AccountScreen(vm: AppViewModel) {
                 }
             },
         )
+    }
+}
+
+@Composable
+private fun AccountCard(
+    title: String,
+    subtitle: String? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(NoduqColors.card)
+            .border(1.dp, NoduqColors.line, RoundedCornerShape(18.dp))
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
+        subtitle?.let { Text(it, color = NoduqColors.muted, fontSize = 13.sp, lineHeight = 18.sp) }
+        content()
+    }
+}
+
+@Composable
+private fun GmailConnectedRow(
+    address: String,
+    busy: Boolean,
+    onDisconnect: () -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(
+            Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(NoduqColors.inset),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(NoduqIcons.Mail, contentDescription = null, tint = NoduqColors.cyan, modifier = Modifier.size(20.dp))
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(address, color = Color.White, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Box(
+                    Modifier
+                        .size(7.dp)
+                        .clip(CircleShape)
+                        .background(NoduqColors.ok),
+                )
+                Text("Conectado", color = NoduqColors.ok, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            }
+        }
+        QuietButton("Desconectar", enabled = !busy, onClick = onDisconnect)
     }
 }

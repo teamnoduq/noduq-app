@@ -128,8 +128,13 @@ fun PaymentNoticeDto.momentIso(): String = occurredAt ?: receivedAt
 
 fun PaymentNoticeDto.whoPaid(): String = when {
     !payerName.isNullOrBlank() -> payerName
-    readable -> "Pago confirmado"
-    else -> "Aviso del banco"
+    else -> "Transferencia Bancolombia"
+}
+
+fun copLabel(amount: Double): String {
+    val n = kotlin.math.round(amount).toLong()
+    val grouped = n.toString().reversed().chunked(3).joinToString(".").reversed()
+    return "$$grouped"
 }
 
 fun PermissionState.needsAttention(): Boolean =

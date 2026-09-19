@@ -2,6 +2,7 @@ package com.noduq.app.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,57 +11,185 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.noduq.app.AppViewModel
 import com.noduq.app.PaymentNoticeDto
 import com.noduq.app.PermissionState
 import com.noduq.app.clockLabel
+import com.noduq.app.copLabel
+import com.noduq.app.dayLabel
+import com.noduq.app.dayStartIsoFromUtcMillis
+import com.noduq.app.filterDateLabel
+import com.noduq.app.localDayEndExclusiveIso
+import com.noduq.app.localDayStartIso
+import com.noduq.app.localWeekStartIso
 import com.noduq.app.momentIso
+import com.noduq.app.nextDayStartIsoFromUtcMillis
 import com.noduq.app.theme.NoduqColors
 import com.noduq.app.titledDay
 import com.noduq.app.whoPaid
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PaymentsScreen(vm: AppViewModel) {
-    val org = vm.workspace?.organization?.name
     LaunchedEffect(Unit) { vm.loadPayments() }
+
+    var sheetOpen by rememberSaveable { mutableStateOf(false) }
+    var picking by rememberSaveable { mutableStateOf<String?>(null) }
+    var draftSince by rememberSaveable { mutableStateOf(vm.paySince) }
+    var draftUntil by rememberSaveable { mutableStateOf(vm.payUntil) }
+    val picker = rememberDatePickerState()
+
+    val todayTotal = vm.notices
+        .filter { dayLabel(it.momentIso()) == "hoy" }
+        .mapNotNull { it.amount }
+        .sum()
+    val viewTotal = vm.notices.mapNotNull { it.amount }.sum()
+    val amountShown = if (vm.payRange == "todos" || vm.payRange == "hoy") todayTotal else viewTotal
+    val summaryPrefix = if (vm.payRange == "todos" || vm.payRange == "hoy") "Hoy" else "En esta vista"
 
     val grouped = vm.notices
         .groupBy { titledDay(it.momentIso()).ifBlank { "Reciente" } }
         .toList()
 
-    LazyColumn(
-        Modifier
-            .fillMaxSize()
-            .padding(horizontal = 22.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        item {
+    Column(Modifier.fillMaxSize()) {
+        Column(Modifier.padding(horizontal = 22.dp)) {
             Spacer(Modifier.height(4.dp))
-            Text("Pagos", style = androidx.compose.material3.MaterialTheme.typography.headlineLarge)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    "Pagos",
+                    color = Color.White,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 32.sp,
+                    letterSpacing = (-0.8).sp,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    LiveDot(NoduqColors.ok)
+                    Text(
+                        "En vivo",
+                        color = NoduqColors.ok,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 13.sp,
+                    )
+                }
+            }
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    "$summaryPrefix:",
+                    color = NoduqColors.cyan,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(bottom = 2.dp),
+                )
+                Text(
+                    copLabel(amountShown),
+                    color = NoduqColors.cyan,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            Spacer(Modifier.height(14.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedTextField(
+                    value = vm.payQuery,
+                    onValueChange = vm::setPaySearch,
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 52.dp),
+                    placeholder = { Text("Buscar por nombre…", color = NoduqColors.muted) },
+                    leadingIcon = {
+                        Icon(NoduqIcons.Search, contentDescription = null, tint = NoduqColors.muted, modifier = Modifier.size(20.dp))
+                    },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { vm.searchPayments() }),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = NoduqColors.ink,
+                        unfocusedTextColor = NoduqColors.ink,
+                        focusedBorderColor = NoduqColors.cyan,
+                        unfocusedBorderColor = NoduqColors.line,
+                        focusedContainerColor = NoduqColors.inset,
+                        unfocusedContainerColor = NoduqColors.inset,
+                        cursorColor = NoduqColors.cyan,
+                    ),
+                )
+                IconButton(
+                    onClick = {
+                        draftSince = vm.paySince
+                        draftUntil = vm.payUntil
+                        sheetOpen = true
+                    },
+                    modifier = Modifier
+                        .size(52.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(NoduqColors.inset)
+                        .border(1.dp, NoduqColors.line, RoundedCornerShape(14.dp)),
+                ) {
+                    Icon(NoduqIcons.Sliders, contentDescription = "Filtros", tint = NoduqColors.cyan)
+                }
+            }
             Spacer(Modifier.height(8.dp))
-            Text(
-                "Aquí llega el aviso cuando confirmen el QR. NODUQ lee el mensaje tal cual llega, de los remitentes de Bancolombia.",
-                color = NoduqColors.muted,
-                fontSize = 16.sp,
-                lineHeight = 24.sp,
-            )
-        }
-        if (vm.needsPermissionSetup(askSms = true)) {
-            item {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                ChipButton("Hoy", vm.payRange == "hoy") {
+                    vm.applyPayRange("hoy", localDayStartIso(0), localDayEndExclusiveIso(0))
+                }
+                ChipButton("Ayer", vm.payRange == "ayer") {
+                    vm.applyPayRange("ayer", localDayStartIso(1), localDayEndExclusiveIso(1))
+                }
+                ChipButton("Semana", vm.payRange == "semana") {
+                    vm.applyPayRange("semana", localWeekStartIso(), localDayEndExclusiveIso(0))
+                }
+                ChipButton("Todos", vm.payRange == "todos") {
+                    vm.applyPayRange("todos", null, null)
+                }
+            }
+            if (vm.needsPermissionSetup(askSms = true)) {
+                Spacer(Modifier.height(12.dp))
                 PermissionCard(
                     askSms = true,
                     notifications = vm.notificationsAllowed,
@@ -70,36 +199,130 @@ fun PaymentsScreen(vm: AppViewModel) {
                     onOpenSettings = vm::openSystemSettings,
                 )
             }
-        }
-        vm.noticesError?.let { message ->
-            item {
+            vm.noticesError?.let { message ->
+                Spacer(Modifier.height(12.dp))
                 Banner(message)
                 QuietButton("Reintentar") { vm.loadPayments() }
             }
+            Spacer(Modifier.height(8.dp))
         }
         when {
-            vm.noticesLoading && vm.notices.isEmpty() -> item {
+            vm.noticesLoading && vm.notices.isEmpty() -> Box(
+                Modifier.weight(1f).fillMaxWidth().padding(horizontal = 22.dp),
+                contentAlignment = Alignment.Center,
+            ) {
                 Text("Cargando avisos…", color = NoduqColors.muted)
             }
-            vm.notices.isEmpty() -> item {
-                EmptyPayments(org)
+            vm.notices.isEmpty() -> Box(
+                Modifier.weight(1f).fillMaxWidth().padding(horizontal = 32.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                EmptyPayments(todayish = vm.payRange == "todos" || vm.payRange == "hoy")
             }
-            else -> grouped.forEach { (day, notices) ->
-                item(key = "day-$day") {
-                    Text(
-                        day,
-                        color = NoduqColors.muted,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 13.sp,
-                        modifier = Modifier.padding(top = 8.dp),
-                    )
+            else -> LazyColumn(
+                Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 22.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                grouped.forEach { (day, notices) ->
+                    item(key = "day-$day") {
+                        Text(
+                            day,
+                            color = NoduqColors.muted,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
+                    items(notices, key = { it.id }) { notice ->
+                        NoticeRow(notice)
+                    }
                 }
-                items(notices, key = { it.id }) { notice ->
-                    NoticeRow(notice)
+                item { Spacer(Modifier.height(16.dp)) }
+            }
+        }
+    }
+
+    if (sheetOpen) {
+        ModalBottomSheet(
+            onDismissRequest = { sheetOpen = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = NoduqColors.raised,
+            contentColor = NoduqColors.ink,
+        ) {
+            Column(
+                Modifier.padding(horizontal = 22.dp, vertical = 8.dp).padding(bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Text("Filtros", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 22.sp)
+                Text("Desde", color = NoduqColors.muted, fontSize = 13.sp)
+                DatePickField(filterDateLabel(draftSince), chosen = draftSince != null) { picking = "from" }
+                Text("Hasta", color = NoduqColors.muted, fontSize = 13.sp)
+                DatePickField(filterDateLabel(draftUntil), chosen = draftUntil != null) { picking = "until" }
+                PrimaryButton(
+                    text = "Aplicar filtros",
+                    onClick = {
+                        vm.applyPayRange("custom", draftSince, draftUntil)
+                        sheetOpen = false
+                    },
+                )
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    QuietButton("Quitar fechas") {
+                        draftSince = null
+                        draftUntil = null
+                        vm.applyPayRange("todos", null, null)
+                        sheetOpen = false
+                    }
                 }
             }
         }
-        item { Spacer(Modifier.height(16.dp)) }
+    }
+
+    picking?.let { field ->
+        DatePickerDialog(
+            onDismissRequest = { picking = null },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val millis = picker.selectedDateMillis
+                        if (millis != null) {
+                            if (field == "from") draftSince = dayStartIsoFromUtcMillis(millis)
+                            else draftUntil = nextDayStartIsoFromUtcMillis(millis)
+                        }
+                        picking = null
+                    },
+                ) { Text("Listo", color = NoduqColors.cyan) }
+            },
+            dismissButton = {
+                TextButton(onClick = { picking = null }) { Text("Cancelar", color = NoduqColors.muted) }
+            },
+        ) {
+            DatePicker(state = picker)
+        }
+    }
+}
+
+@Composable
+private fun DatePickField(label: String, chosen: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(NoduqColors.inset)
+            .border(1.dp, NoduqColors.line, RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 18.dp, vertical = 16.dp),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Text(
+            label,
+            color = if (chosen) NoduqColors.cyan else Color.White,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 16.sp,
+        )
     }
 }
 
@@ -178,35 +401,31 @@ private fun PermissionRow(
 }
 
 @Composable
-private fun EmptyPayments(org: String?) {
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(NoduqColors.raised)
-            .border(1.dp, NoduqColors.cyan.copy(alpha = 0.28f), RoundedCornerShape(24.dp))
-            .padding(28.dp),
-        contentAlignment = Alignment.Center,
+private fun EmptyPayments(todayish: Boolean) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                LiveDot()
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    "Todavía no hay avisos",
-                    color = NoduqColors.ink,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 20.sp,
-                )
-            }
-            Spacer(Modifier.height(10.dp))
-            Text(
-                "Cuando paguen el QR, el aviso aparece aquí${if (org != null) " en $org" else ""}. NODUQ lo muestra; no hace falta el comprobante que manda el cliente.",
-                color = NoduqColors.muted,
-                fontSize = 15.sp,
-                lineHeight = 22.sp,
-            )
-        }
+        Icon(
+            NoduqIcons.BellOff,
+            contentDescription = null,
+            tint = NoduqColors.cyan.copy(alpha = 0.45f),
+            modifier = Modifier.size(48.dp),
+        )
+        Text(
+            if (todayish) "Aún no hay pagos hoy" else "Sin movimientos registrados",
+            color = Color.White,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 20.sp,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
+        Text(
+            "Los pagos confirmados por QR o Bancolombia aparecerán aquí automáticamente.",
+            color = NoduqColors.muted,
+            fontSize = 15.sp,
+            lineHeight = 22.sp,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
     }
 }
 
@@ -248,12 +467,20 @@ fun NoticeRow(notice: PaymentNoticeDto) {
             }
         }
         Spacer(Modifier.width(12.dp))
-        Text(
-            notice.amountLabel ?: "—",
-            color = NoduqColors.cyan,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 18.sp,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(
+                NoduqIcons.Check,
+                contentDescription = null,
+                tint = NoduqColors.ok,
+                modifier = Modifier.size(16.dp),
+            )
+            Text(
+                notice.amountLabel ?: "—",
+                color = NoduqColors.cyan,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 18.sp,
+            )
+        }
     }
 }
 
@@ -280,7 +507,7 @@ fun LivePaymentCard(notice: PaymentNoticeDto) {
         }
         Spacer(Modifier.height(16.dp))
         Text(
-            notice.amountLabel ?: "Pago confirmado",
+            notice.amountLabel ?: "—",
             color = NoduqColors.ink,
             fontWeight = FontWeight.SemiBold,
             fontSize = 40.sp,

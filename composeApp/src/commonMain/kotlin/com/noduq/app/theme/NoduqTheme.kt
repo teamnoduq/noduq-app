@@ -25,6 +25,7 @@ object NoduqColors {
     val spark = Color(0xFF4034EB)
     val inset = Color(0xFF03181B)
     val raised = Color(0xFF0A2226)
+    val card = Color(0xFF121E24)
     val line = Color(0x29D3F6FB)
     val muted = Color(0x99D3F6FB)
     val danger = Color(0xFFFF8A80)
