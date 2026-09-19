@@ -52,6 +52,8 @@ actual fun BackNavigation(enabled: Boolean, onBack: () -> Unit) {
     androidx.activity.compose.BackHandler(enabled, onBack)
 }
 
+actual fun motionEnabled(): Boolean = android.animation.ValueAnimator.areAnimatorsEnabled()
+
 class AndroidClipboard(private val context: Context) : Clipboard {
     override fun copy(text: String): Boolean {
         val manager = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager

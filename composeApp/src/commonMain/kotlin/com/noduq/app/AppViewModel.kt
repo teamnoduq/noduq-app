@@ -242,6 +242,8 @@ class AppViewModel(
         when {
             mail.isBlank() -> error = "Escribe un correo."
             password.length < 6 -> error = "La contraseña debe tener al menos 6 caracteres."
+            password.none { it.isUpperCase() } -> error = "Incluye al menos una mayúscula."
+            password.none { it.isDigit() } -> error = "Incluye al menos un número."
             password != confirm -> error = "Las contraseñas no coinciden."
             else -> launchWork("Creando…") {
                 val session = supabase.signUp(mail, password)
@@ -481,7 +483,7 @@ class AppViewModel(
         }
         launchWork {
             supabase.recoverPassword(mail, "https://noduq.app/recuperar")
-            info = "Te escribimos para cambiar la contraseña. Abre el enlace del correo."
+            info = "sent"
         }
     }
 

@@ -14,6 +14,7 @@ class NoduqApplication : Application() {
         AppGraph.tokens = AndroidTokenStore(this)
         AppGraph.clipboard = AndroidClipboard(this)
         AppGraph.links = AndroidLinkOpener(this)
+        AppGraph.paymentAlerts = AndroidLocalPaymentAlerts(this)
         AppGraph.api = NoduqApi(http, AndroidAppConfig)
         AppGraph.supabase = SupabaseAuthApi(client = http, config = AndroidAppConfig)
         AppGraph.googleAuth = AndroidGoogleAuth(

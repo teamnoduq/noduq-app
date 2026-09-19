@@ -13,9 +13,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -55,44 +58,68 @@ fun EmployeeLoginScreen(vm: AppViewModel) {
             .fillMaxSize()
             .statusBarsPadding()
             .navigationBarsPadding()
-            .verticalScroll(rememberScrollState())
-            .padding(bottom = 28.dp),
+            .imePadding(),
     ) {
-        ScreenColumn {
-            Spacer(Modifier.height(8.dp))
-            BrandMark()
-            QuietButton("Volver") { vm.go(Screen.RoleGate) }
-            Text("Entrar", style = androidx.compose.material3.MaterialTheme.typography.displayLarge.copy(fontSize = 34.sp))
-            Text(
-                "Usuario y código. El siguiente paso es esperar a que el QR se confirme.",
-                color = NoduqColors.muted,
-                fontSize = 16.sp,
-                lineHeight = 24.sp,
-            )
-            NoduqField(
-                value = username,
-                onValueChange = { username = it.lowercase().filter { ch -> ch.isLetterOrDigit() || ch == '_' } },
-                label = "Usuario",
-                enabled = !vm.busy,
-                keyboardType = KeyboardType.Text,
-            )
-            NoduqField(
-                value = code,
-                onValueChange = { code = formatEmployeeCode(it) },
-                label = "Código",
-                hint = "Formato XXXXX-XXXXX",
-                mono = true,
-                imeAction = ImeAction.Done,
-                enabled = !vm.busy,
-                onIme = { vm.employeeSignIn(username, code) },
-            )
-            vm.error?.let { Banner(it) }
-            PrimaryButton(
-                text = if (vm.busy) "Entrando…" else "Entrar",
-                loading = vm.busy,
-                hero = true,
-                onClick = { vm.employeeSignIn(username, code) },
-            )
+        Row(
+            Modifier.padding(start = 10.dp, top = 4.dp, end = 22.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BackIconButton(onClick = { vm.go(Screen.RoleGate) })
+            BrandMark(compact = true)
+        }
+        BoxWithConstraints(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+        ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = maxHeight)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 22.dp)
+                    .padding(bottom = 28.dp),
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text(
+                        "Entrar",
+                        style = androidx.compose.material3.MaterialTheme.typography.headlineLarge,
+                        color = NoduqColors.ink,
+                    )
+                    Text(
+                        "Ingresa tu usuario y código. En el siguiente paso confirmaremos tu acceso mediante QR.",
+                        color = NoduqColors.muted,
+                        fontSize = 16.sp,
+                        lineHeight = 24.sp,
+                    )
+                    NoduqField(
+                        value = username,
+                        onValueChange = { username = it.lowercase().filter { ch -> ch.isLetterOrDigit() || ch == '_' } },
+                        label = "Usuario",
+                        placeholder = "juan.perez",
+                        enabled = !vm.busy,
+                        keyboardType = KeyboardType.Text,
+                    )
+                    NoduqField(
+                        value = code,
+                        onValueChange = { code = formatEmployeeCode(it) },
+                        label = "Código",
+                        placeholder = "ABC12-XY89",
+                        mono = true,
+                        imeAction = ImeAction.Done,
+                        enabled = !vm.busy,
+                        onIme = { vm.employeeSignIn(username, code) },
+                    )
+                    vm.error?.let { Banner(it) }
+                    PrimaryButton(
+                        text = if (vm.busy) "Entrando…" else "Entrar",
+                        loading = vm.busy,
+                        hero = true,
+                        onClick = { vm.employeeSignIn(username, code) },
+                    )
+                }
+            }
         }
     }
 }

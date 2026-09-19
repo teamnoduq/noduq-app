@@ -1,5 +1,6 @@
 package com.noduq.app.theme
 
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
@@ -28,6 +29,16 @@ object NoduqColors {
     val muted = Color(0x99D3F6FB)
     val danger = Color(0xFFFF8A80)
     val ok = Color(0xFF8EF0C8)
+}
+
+object NoduqMotion {
+    val easeOut = CubicBezierEasing(0.23f, 1f, 0.32f, 1f)
+    const val pressMs = 140
+    const val selectMs = 200
+    /** Beat so the card color reads before the screen starts moving. */
+    const val selectLeadMs = 56
+    const val screenMs = 200
+    const val fadeMs = 160
 }
 
 private val scheme = darkColorScheme(
@@ -85,7 +96,6 @@ private fun noduqTypography(outfit: FontFamily) = Typography(
         fontSize = 40.sp,
         lineHeight = 42.sp,
         letterSpacing = (-1.6).sp,
-        color = NoduqColors.ink,
     ),
     headlineLarge = TextStyle(
         fontFamily = outfit,
@@ -93,7 +103,6 @@ private fun noduqTypography(outfit: FontFamily) = Typography(
         fontSize = 32.sp,
         lineHeight = 36.sp,
         letterSpacing = (-0.9).sp,
-        color = NoduqColors.ink,
     ),
     headlineMedium = TextStyle(
         fontFamily = outfit,
@@ -101,7 +110,6 @@ private fun noduqTypography(outfit: FontFamily) = Typography(
         fontSize = 24.sp,
         lineHeight = 28.sp,
         letterSpacing = (-0.5).sp,
-        color = NoduqColors.ink,
     ),
     titleLarge = TextStyle(
         fontFamily = outfit,
@@ -109,46 +117,39 @@ private fun noduqTypography(outfit: FontFamily) = Typography(
         fontSize = 20.sp,
         lineHeight = 26.sp,
         letterSpacing = (-0.3).sp,
-        color = NoduqColors.ink,
     ),
     titleMedium = TextStyle(
         fontFamily = outfit,
         fontWeight = FontWeight.Medium,
         fontSize = 16.sp,
-        color = NoduqColors.ink,
     ),
     bodyLarge = TextStyle(
         fontFamily = outfit,
         fontWeight = FontWeight.Normal,
         fontSize = 16.sp,
         lineHeight = 24.sp,
-        color = NoduqColors.ink,
     ),
     bodyMedium = TextStyle(
         fontFamily = outfit,
         fontWeight = FontWeight.Normal,
         fontSize = 14.sp,
         lineHeight = 22.sp,
-        color = NoduqColors.muted,
     ),
     labelLarge = TextStyle(
         fontFamily = outfit,
         fontWeight = FontWeight.SemiBold,
         fontSize = 16.sp,
-        color = NoduqColors.night,
     ),
     labelMedium = TextStyle(
         fontFamily = outfit,
         fontWeight = FontWeight.Medium,
         fontSize = 13.sp,
         letterSpacing = 0.2.sp,
-        color = NoduqColors.ink,
     ),
     labelSmall = TextStyle(
         fontFamily = outfit,
         fontWeight = FontWeight.Medium,
         fontSize = 11.sp,
         letterSpacing = 1.4.sp,
-        color = NoduqColors.cyan,
     ),
 )

@@ -2,27 +2,38 @@ package com.noduq.app.ui
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -30,9 +41,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.noduq.app.AppViewModel
 import com.noduq.app.Screen
+import com.noduq.app.motionEnabled
 import com.noduq.app.resources.Res
 import com.noduq.app.resources.logo_nq_cian_noche
 import com.noduq.app.theme.NoduqColors
+import com.noduq.app.theme.NoduqMotion
+import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.painterResource
 
 @Composable
@@ -67,60 +81,61 @@ fun RoleGateScreen(vm: AppViewModel) {
         Modifier
             .fillMaxSize()
             .statusBarsPadding()
-            .navigationBarsPadding()
-            .verticalScroll(rememberScrollState())
-            .padding(bottom = 28.dp),
+            .navigationBarsPadding(),
     ) {
-        ScreenColumn {
-            Spacer(Modifier.height(12.dp))
-            BrandMark()
-            Spacer(Modifier.height(28.dp))
+        Box(Modifier.padding(start = 22.dp, top = 12.dp, end = 22.dp)) {
+            BrandMark(compact = true)
+        }
+        Column(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(horizontal = 22.dp)
+                .padding(bottom = 28.dp),
+            verticalArrangement = Arrangement.Center,
+        ) {
             Text(
-                "Entrar",
-                style = androidx.compose.material3.MaterialTheme.typography.displayLarge,
+                "¿Quién entra?",
+                color = NoduqColors.ink,
+                fontWeight = FontWeight.Medium,
+                fontSize = 28.sp,
+                lineHeight = 32.sp,
+                letterSpacing = (-0.6).sp,
             )
-            Text(
-                "Correo y Google, o usuario y código.",
-                color = NoduqColors.muted,
-                fontSize = 17.sp,
-                lineHeight = 26.sp,
-            )
-            Spacer(Modifier.height(8.dp))
-            SurfaceCard(highlighted = true, onClick = { vm.go(Screen.EmployeeLogin) }) {
-                Kicker("Empleado")
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "Usuario y código",
-                    color = NoduqColors.night,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 28.sp,
-                    letterSpacing = (-0.6).sp,
+            Spacer(Modifier.height(20.dp))
+            var picked by remember { mutableStateOf<RoleKind?>(null) }
+            LaunchedEffect(picked) {
+                val next = when (picked) {
+                    RoleKind.Admin -> Screen.OwnerLogin
+                    RoleKind.Employee -> Screen.EmployeeLogin
+                    null -> return@LaunchedEffect
+                }
+                if (motionEnabled()) {
+                    withFrameNanos { }
+                    delay(NoduqMotion.selectLeadMs.toLong())
+                }
+                vm.go(next)
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                RoleCard(
+                    kind = RoleKind.Admin,
+                    title = "Administrador",
+                    body = "Inicia con Correo o Google para gestionar tu negocio.",
+                    selected = picked == RoleKind.Admin,
+                    onClick = { picked = RoleKind.Admin },
                 )
-                Text(
-                    "Entras y esperas el aviso del pago.",
-                    color = NoduqColors.night.copy(alpha = 0.78f),
-                    fontSize = 15.sp,
-                    lineHeight = 22.sp,
+                RoleCard(
+                    kind = RoleKind.Employee,
+                    title = "Empleado",
+                    body = "Entra rápidamente con tu usuario y PIN.",
+                    selected = picked == RoleKind.Employee,
+                    onClick = { picked = RoleKind.Employee },
                 )
             }
-            SurfaceCard(onClick = { vm.go(Screen.OwnerLogin) }) {
-                Kicker("Cuenta")
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "Correo, contraseña o Google",
-                    color = NoduqColors.ink,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 22.sp,
-                )
-                Text(
-                    "Pagos, empleados y cuenta.",
-                    color = NoduqColors.muted,
-                    fontSize = 15.sp,
-                    lineHeight = 22.sp,
-                )
+            vm.error?.let {
+                Spacer(Modifier.height(16.dp))
+                Banner(it)
             }
-            GhostButton("Crear cuenta", onClick = { vm.go(Screen.OwnerRegister) })
-            vm.error?.let { Banner(it) }
         }
     }
 }
@@ -129,40 +144,92 @@ fun RoleGateScreen(vm: AppViewModel) {
 fun OwnerLoginScreen(vm: AppViewModel) {
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
-    AuthScaffold(
-        title = "Entrar",
-        lede = "Correo y contraseña, o Google. Si aún no tienes cuenta, créala aquí.",
-        onBack = { vm.go(Screen.RoleGate) },
+    Column(
+        Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .imePadding(),
     ) {
-        NoduqField(
-            value = email,
-            onValueChange = { email = it },
-            label = "Correo",
-            keyboardType = KeyboardType.Email,
-            enabled = !vm.busy,
-        )
-        NoduqField(
-            value = password,
-            onValueChange = { password = it },
-            label = "Contraseña",
-            password = true,
-            imeAction = ImeAction.Done,
-            enabled = !vm.busy,
-            onIme = { vm.ownerSignIn(email, password) },
-        )
-        vm.error?.let { Banner(it) }
-        PrimaryButton(
-            text = if (vm.busy) "Entrando…" else "Entrar",
-            loading = vm.busy,
-            onClick = { vm.ownerSignIn(email, password) },
-        )
-        OrDivider()
-        GoogleButton(
-            onClick = { vm.ownerGoogle() },
-            enabled = !vm.busy,
-        )
-        GhostButton("Crear cuenta", onClick = { vm.go(Screen.OwnerRegister) }, enabled = !vm.busy)
-        QuietButton("Olvidé mi contraseña", onClick = { vm.go(Screen.OwnerForgotPassword) }, enabled = !vm.busy)
+        Row(
+            Modifier.padding(start = 10.dp, top = 4.dp, end = 22.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BackIconButton(onClick = { vm.go(Screen.RoleGate) })
+            BrandMark(compact = true)
+        }
+        BoxWithConstraints(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+        ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = maxHeight)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 22.dp)
+                    .padding(bottom = 12.dp),
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text(
+                        "Entrar",
+                        style = androidx.compose.material3.MaterialTheme.typography.headlineLarge,
+                        color = NoduqColors.ink,
+                    )
+                    Text(
+                        "Gestiona tu negocio y accesos desde un solo lugar.",
+                        color = NoduqColors.muted,
+                        fontSize = 16.sp,
+                        lineHeight = 24.sp,
+                    )
+                    NoduqField(
+                        value = email,
+                        onValueChange = { email = it },
+                        label = "Correo",
+                        keyboardType = KeyboardType.Email,
+                        enabled = !vm.busy,
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        NoduqField(
+                            value = password,
+                            onValueChange = { password = it },
+                            label = "Contraseña",
+                            password = true,
+                            imeAction = ImeAction.Done,
+                            enabled = !vm.busy,
+                            onIme = { vm.ownerSignIn(email, password) },
+                        )
+                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+                            QuietTextLink(
+                                text = "Olvidé mi contraseña",
+                                onClick = { vm.go(Screen.OwnerForgotPassword) },
+                                enabled = !vm.busy,
+                            )
+                        }
+                    }
+                    vm.error?.let { Banner(it) }
+                    PrimaryButton(
+                        text = if (vm.busy) "Entrando…" else "Entrar",
+                        loading = vm.busy,
+                        onClick = { vm.ownerSignIn(email, password) },
+                    )
+                }
+                OrDivider()
+                GoogleButton(
+                    onClick = { vm.ownerGoogle() },
+                    enabled = !vm.busy,
+                )
+                Spacer(Modifier.height(28.dp))
+                AuthLinkRow(
+                    prompt = "¿Aún no tienes cuenta?",
+                    action = "Crear cuenta",
+                    onClick = { vm.go(Screen.OwnerRegister) },
+                    enabled = !vm.busy,
+                )
+            }
+        }
     }
 }
 
@@ -171,42 +238,89 @@ fun OwnerRegisterScreen(vm: AppViewModel) {
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var confirm by rememberSaveable { mutableStateOf("") }
-    AuthScaffold(
-        title = "Crear cuenta",
-        lede = "Correo y contraseña, o Google. Después el nombre del comercio.",
-        onBack = { vm.go(Screen.OwnerLogin) },
+    Column(
+        Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .imePadding(),
     ) {
-        NoduqField(email, { email = it }, "Correo", keyboardType = KeyboardType.Email, enabled = !vm.busy)
-        NoduqField(
-            password,
-            { password = it },
-            "Contraseña",
-            password = true,
-            hint = "Mínimo 6 caracteres.",
-            enabled = !vm.busy,
-        )
-        NoduqField(
-            confirm,
-            { confirm = it },
-            "Repite la contraseña",
-            password = true,
-            imeAction = ImeAction.Done,
-            enabled = !vm.busy,
-            onIme = { vm.ownerSignUp(email, password, confirm) },
-        )
-        vm.error?.let { Banner(it) }
-        vm.info?.let { Banner(it, tone = "ok") }
-        PrimaryButton(
-            text = if (vm.busy) "Creando…" else "Crear cuenta",
-            loading = vm.busy,
-            onClick = { vm.ownerSignUp(email, password, confirm) },
-        )
-        OrDivider()
-        GoogleButton(
-            onClick = { vm.ownerGoogle() },
-            enabled = !vm.busy,
-        )
-        QuietButton("Ya tengo cuenta", onClick = { vm.go(Screen.OwnerLogin) })
+        Row(
+            Modifier.padding(start = 10.dp, top = 4.dp, end = 22.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BackIconButton(onClick = { vm.go(Screen.OwnerLogin) })
+            BrandMark(compact = true)
+        }
+        BoxWithConstraints(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+        ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = maxHeight)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 22.dp)
+                    .padding(bottom = 12.dp),
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text(
+                        "Crear cuenta",
+                        style = androidx.compose.material3.MaterialTheme.typography.headlineLarge,
+                        color = NoduqColors.ink,
+                    )
+                    Text(
+                        "Regístrate en NODUQ y empieza a gestionar tu negocio de forma inteligente.",
+                        color = NoduqColors.muted,
+                        fontSize = 16.sp,
+                        lineHeight = 24.sp,
+                    )
+                    NoduqField(email, { email = it }, "Correo", keyboardType = KeyboardType.Email, enabled = !vm.busy)
+                    NoduqField(
+                        password,
+                        { password = it },
+                        "Contraseña",
+                        password = true,
+                        enabled = !vm.busy,
+                    )
+                    PasswordChecklist(password = password)
+                    NoduqField(
+                        confirm,
+                        { confirm = it },
+                        "Repite la contraseña",
+                        password = true,
+                        imeAction = ImeAction.Done,
+                        enabled = !vm.busy,
+                        onIme = { vm.ownerSignUp(email, password, confirm) },
+                    )
+                    if (confirm.isNotEmpty()) {
+                        PasswordMatchHint(password = password, confirm = confirm)
+                    }
+                    vm.error?.let { Banner(it) }
+                    vm.info?.let { Banner(it, tone = "ok") }
+                    PrimaryButton(
+                        text = if (vm.busy) "Creando…" else "Crear cuenta",
+                        loading = vm.busy,
+                        onClick = { vm.ownerSignUp(email, password, confirm) },
+                    )
+                }
+                OrDivider()
+                GoogleButton(
+                    onClick = { vm.ownerGoogle() },
+                    enabled = !vm.busy,
+                )
+                Spacer(Modifier.height(28.dp))
+                AuthLinkRow(
+                    prompt = "¿Ya tienes cuenta?",
+                    action = "Entrar",
+                    onClick = { vm.go(Screen.OwnerLogin) },
+                    enabled = !vm.busy,
+                )
+            }
+        }
     }
 }
 
@@ -218,6 +332,7 @@ fun OwnerSetupScreen(vm: AppViewModel) {
         title = "Tu comercio",
         lede = "Así aparece en NODUQ. Los avisos salen de los remitentes de Bancolombia; no hay que pegar números de cuenta.",
         onBack = { vm.ownerSignOut() },
+        backLabel = "Salir",
     ) {
         NoduqField(
             org,
@@ -246,24 +361,112 @@ fun OwnerSetupScreen(vm: AppViewModel) {
 @Composable
 fun OwnerForgotPasswordScreen(vm: AppViewModel) {
     var email by rememberSaveable { mutableStateOf("") }
-    AuthScaffold(
-        title = "Restablecer contraseña",
-        lede = "Te escribimos un enlace. Lo abres y eliges la clave nueva.",
-        onBack = { vm.go(Screen.OwnerLogin) },
+    val sent = vm.info != null
+    Column(
+        Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .imePadding(),
     ) {
-        NoduqField(
-            email,
-            { email = it },
-            "Correo",
-            keyboardType = KeyboardType.Email,
-            enabled = !vm.busy,
-        )
-        vm.error?.let { Banner(it) }
-        vm.info?.let { Banner(it, tone = "ok") }
-        PrimaryButton(
-            text = if (vm.busy) "Enviando…" else "Enviar enlace",
-            loading = vm.busy,
-            onClick = { vm.requestPasswordReset(email) },
+        Row(
+            Modifier.padding(start = 10.dp, top = 4.dp, end = 22.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BackIconButton(onClick = { vm.go(Screen.OwnerLogin) })
+            BrandMark(compact = true)
+        }
+        BoxWithConstraints(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+        ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = maxHeight)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 22.dp)
+                    .padding(bottom = 28.dp),
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text(
+                        "Restablecer contraseña",
+                        style = androidx.compose.material3.MaterialTheme.typography.headlineLarge,
+                        color = NoduqColors.ink,
+                    )
+                    if (sent) {
+                        ResetSentCard()
+                        PrimaryButton(
+                            text = "Volver a entrar",
+                            onClick = { vm.go(Screen.OwnerLogin) },
+                        )
+                    } else {
+                        Text(
+                            "Ingresa tu correo y te enviaremos un enlace para crear una nueva contraseña.",
+                            color = NoduqColors.muted,
+                            fontSize = 16.sp,
+                            lineHeight = 24.sp,
+                        )
+                        NoduqField(
+                            email,
+                            { email = it },
+                            "Correo",
+                            placeholder = "Correo",
+                            floatLabel = false,
+                            keyboardType = KeyboardType.Email,
+                            imeAction = ImeAction.Done,
+                            enabled = !vm.busy,
+                            onIme = { vm.requestPasswordReset(email) },
+                        )
+                        vm.error?.let { Banner(it) }
+                        PrimaryButton(
+                            text = if (vm.busy) "Enviando…" else "Enviar enlace",
+                            loading = vm.busy,
+                            onClick = { vm.requestPasswordReset(email) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ResetSentCard() {
+    val shape = RoundedCornerShape(18.dp)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(NoduqColors.raised)
+            .border(1.dp, NoduqColors.ok.copy(alpha = 0.45f), shape)
+            .padding(horizontal = 20.dp, vertical = 22.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Image(
+                imageVector = Phosphor.Check,
+                contentDescription = null,
+                modifier = Modifier.size(22.dp),
+                colorFilter = ColorFilter.tint(NoduqColors.ok),
+            )
+            Text(
+                "¡Correo enviado!",
+                color = NoduqColors.ink,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 18.sp,
+            )
+        }
+        Text(
+            "Revisa tu bandeja de entrada y sigue las instrucciones.",
+            color = NoduqColors.muted,
+            fontSize = 16.sp,
+            lineHeight = 24.sp,
         )
     }
 }
@@ -274,6 +477,7 @@ fun OwnerPlanScreen(vm: AppViewModel) {
         title = "Activa NODUQ",
         lede = "SMS del 85540 y correo de Bancolombia. $38.900 al mes. Si sales ahora, volvemos aquí hasta que el plan quede pago.",
         onBack = { vm.ownerSignOut() },
+        backLabel = "Salir",
         kicker = "Plan",
     ) {
         Text(
@@ -303,6 +507,7 @@ fun OwnerPermissionsScreen(vm: AppViewModel) {
         title = "Permisos del teléfono",
         lede = "Sin avisos y sin SMS del 85540, el mostrador no se entera del QR.",
         onBack = { vm.ownerSignOut() },
+        backLabel = "Salir",
         kicker = "Onboarding",
     ) {
         PermissionCard(
@@ -333,6 +538,7 @@ private fun AuthScaffold(
     lede: String,
     onBack: () -> Unit,
     kicker: String? = null,
+    backLabel: String = "Volver",
     content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
 ) {
     Column(
@@ -345,10 +551,19 @@ private fun AuthScaffold(
     ) {
         ScreenColumn {
             Spacer(Modifier.height(8.dp))
-            BrandMark()
-            QuietButton("Volver", onClick = onBack)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (backLabel == "Volver") {
+                    BackIconButton(onClick = onBack)
+                    BrandMark(compact = true)
+                } else {
+                    BrandMark()
+                }
+            }
+            if (backLabel != "Volver") {
+                QuietButton(backLabel, onClick = onBack)
+            }
             if (kicker != null) Kicker(kicker)
-            Text(title, style = androidx.compose.material3.MaterialTheme.typography.headlineLarge)
+            Text(title, style = androidx.compose.material3.MaterialTheme.typography.headlineLarge, color = NoduqColors.ink)
             Text(lede, color = NoduqColors.muted, fontSize = 16.sp, lineHeight = 24.sp)
             Column(
                 Modifier.fillMaxWidth(),

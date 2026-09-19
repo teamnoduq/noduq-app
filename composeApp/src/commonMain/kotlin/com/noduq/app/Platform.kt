@@ -30,6 +30,11 @@ interface LinkOpener {
     fun open(url: String)
 }
 
+/** The till phone that caught the SMS should ring without waiting for Firebase. */
+interface PaymentAlerts {
+    fun show(notice: PaymentNoticeDto)
+}
+
 /** The address this phone answers to for push. Null when the phone cannot reach Firebase. */
 interface PushTokens {
     suspend fun current(): String?
@@ -83,6 +88,7 @@ object AppGraph {
     lateinit var googleAuth: GoogleAuth
     lateinit var clipboard: Clipboard
     lateinit var links: LinkOpener
+    lateinit var paymentAlerts: PaymentAlerts
     lateinit var push: PushTokens
     lateinit var permissions: DevicePermissions
     lateinit var pendingSms: PendingSmsStore
@@ -102,3 +108,6 @@ expect fun dayLabel(iso: String?): String
 
 @androidx.compose.runtime.Composable
 expect fun BackNavigation(enabled: Boolean = true, onBack: () -> Unit)
+
+/** False when the system has animation scale at zero — skip delays that wait on motion. */
+expect fun motionEnabled(): Boolean

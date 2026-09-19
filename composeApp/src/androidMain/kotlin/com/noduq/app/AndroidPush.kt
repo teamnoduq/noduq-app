@@ -20,6 +20,20 @@ import kotlin.coroutines.resume
 
 const val PAYMENT_CHANNEL = "noduq_payments"
 
+class AndroidLocalPaymentAlerts(private val context: Context) : PaymentAlerts {
+    override fun show(notice: PaymentNoticeDto) {
+        val who = notice.payerName?.takeIf { it.isNotBlank() }
+        val amount = notice.amountLabel
+        val body = when {
+            who != null && amount != null -> "$who · $amount"
+            amount != null -> amount
+            who != null -> who
+            else -> "Llegó un aviso del banco. Ábrelo para verlo."
+        }
+        showPayment(context, "El pago ya llegó", body, notice.id)
+    }
+}
+
 class AndroidPushTokens : PushTokens {
     override suspend fun current(): String? = suspendCancellableCoroutine { waiting ->
         try {
@@ -74,7 +88,7 @@ class NoduqMessagingService : FirebaseMessagingService() {
     }
 }
 
-private fun showPayment(context: Context, title: String, body: String, id: String?) {
+internal fun showPayment(context: Context, title: String, body: String, id: String?) {
     if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
     val open = PendingIntent.getActivity(
         context,

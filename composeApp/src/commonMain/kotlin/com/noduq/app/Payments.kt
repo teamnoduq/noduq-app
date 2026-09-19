@@ -67,7 +67,10 @@ class BankSmsForwarder(
         } catch (_: Exception) {
             return false
         }
-        if (answer.outcome == "stored") PaymentSignals.announce()
+        if (answer.outcome == "stored" || answer.outcome == "duplicate") {
+            PaymentSignals.announce()
+            answer.notice?.let { AppGraph.paymentAlerts.show(it) }
+        }
         return true
     }
 
