@@ -13,6 +13,7 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
+import io.ktor.http.encodeURLParameter
 import io.ktor.http.isSuccess
 import kotlinx.serialization.json.Json
 
@@ -62,8 +63,21 @@ class NoduqApi(
         request<Unit>("DELETE", "/v1/employees/$id", token, empty = true)
     }
 
-    suspend fun listPayments(token: String, limit: Int = 30): PaymentFeedDto =
-        request("GET", "/v1/payments?limit=$limit", token)
+    suspend fun listPayments(
+        token: String,
+        limit: Int = 80,
+        q: String? = null,
+        since: String? = null,
+        until: String? = null,
+    ): PaymentFeedDto {
+        val query = buildList {
+            add("limit=$limit")
+            if (!q.isNullOrBlank()) add("q=${q.trim().encodeURLParameter()}")
+            if (!since.isNullOrBlank()) add("since=${since.encodeURLParameter()}")
+            if (!until.isNullOrBlank()) add("until=${until.encodeURLParameter()}")
+        }.joinToString("&")
+        return request("GET", "/v1/payments?$query", token)
+    }
 
     suspend fun ingestSms(token: String, body: SmsIngestRequest): SmsIngestResponseDto =
         request("POST", "/v1/payments/sms", token, body)
