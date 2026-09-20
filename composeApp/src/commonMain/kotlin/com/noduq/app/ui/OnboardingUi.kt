@@ -13,12 +13,17 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -27,6 +32,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -35,10 +41,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -50,9 +57,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -60,15 +76,20 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.noduq.app.AppViewModel
 import com.noduq.app.motionEnabled
+import com.noduq.app.resources.Res
+import com.noduq.app.resources.logo_nq_cian_noche
 import com.noduq.app.theme.NoduqColors
 import com.noduq.app.theme.NoduqMotion
 import kotlinx.coroutines.delay
+import org.jetbrains.compose.resources.painterResource
 
 private const val ONBOARD_STEPS = 7
 private val SmsBody =
-    "Bancolombia: DROGUERIA RICKY, recibiste un pago de JOSE FRANCISCO PEROZA PABUENA por $5,000.00 en tu cuenta *8186 el 19/09/2026 a las 19:38."
+    "Bancolombia: MI NEGOCIO, recibiste un pago de RONALDINHO ORTEGA RUIZ por $5,000.00 el 19/09/2026 a las 19:38."
 private val MailBody =
     "Hola recibiste una transferencia de JOSE FRANCISCO PEROZA PABUENA por $5,000.00 el 19/09/2026 a las 19:38."
 
@@ -177,56 +198,16 @@ private fun StepBody(
     }
 }
 
+private val NoticeFill = Color(0xFF0F171A)
+private val NoticeLine = Color.White.copy(alpha = 0.10f)
+private const val FlowCycleMs = 3000
+
 @Composable
 private fun WelcomeStep(onStart: () -> Unit) {
-    val pulse = rememberInfiniteTransition(label = "pay-pulse")
-    val glow by pulse.animateFloat(0.35f, 1f, infiniteRepeatable(tween(1200), RepeatMode.Reverse), label = "glow")
     StepBody(
-        title = "Tus pagos confirmados y notificados al instante a tus empleados.",
-        lede = "NODUQ detecta las transferencias bancarias y le avisa a tu equipo sin que tengas que enviar capturas.",
-        art = {
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                PhoneFrame(label = "Dueño", modifier = Modifier.weight(1f)) {
-                    BankChip(amount = "$5,000", glow = glow)
-                }
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(horizontal = 6.dp),
-                ) {
-                    Box(
-                        Modifier
-                            .width(28.dp)
-                            .height(2.dp)
-                            .background(NoduqColors.cyan.copy(alpha = 0.25f + glow * 0.6f)),
-                    )
-                    Text("→", color = NoduqColors.cyan.copy(alpha = glow), fontSize = 22.sp)
-                }
-                PhoneFrame(label = "Empleado", modifier = Modifier.weight(1f)) {
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(NoduqColors.inset)
-                            .border(1.dp, NoduqColors.ok.copy(alpha = 0.45f), RoundedCornerShape(10.dp))
-                            .padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        Icon(Phosphor.Bell, null, tint = NoduqColors.cyan, modifier = Modifier.size(14.dp))
-                        Text(
-                            "Pago validado: $5,000 — Droguería Ricky",
-                            color = Color.White,
-                            fontSize = 10.sp,
-                            lineHeight = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                        )
-                    }
-                }
-            }
-        },
+        title = "Tus empleados confirman el pago al instante. Sin llamarte.",
+        lede = "NODUQ detecta las transferencias de tu QR en tiempo real y les avisa en el mostrador para que no tengas que estar confirmando cada cobro por WhatsApp.",
+        art = { WelcomeFlowArt() },
         footer = {
             PrimaryButton("Comenzar configuración", hero = true, onClick = onStart)
         },
@@ -234,108 +215,286 @@ private fun WelcomeStep(onStart: () -> Unit) {
 }
 
 @Composable
-private fun PhoneFrame(label: String, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
+private fun WelcomeFlowArt() {
+    val reduce = !motionEnabled()
+    val motion = rememberInfiniteTransition(label = "welcome-flow")
+    val cycle by motion.animateFloat(
+        0f,
+        1f,
+        infiniteRepeatable(tween(FlowCycleMs, easing = LinearEasing), RepeatMode.Restart),
+        label = "cycle",
+    )
+    val dash by motion.animateFloat(
+        0f,
+        26f,
+        infiniteRepeatable(tween(1800, easing = LinearEasing), RepeatMode.Restart),
+        label = "dash",
+    )
+    val nodePulse by motion.animateFloat(
+        1f,
+        1.07f,
+        infiniteRepeatable(tween(1800, easing = NoduqMotion.easeOut), RepeatMode.Reverse),
+        label = "node",
+    )
+    var sceneCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    var ownerCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    var nqCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    var empCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    var posCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
+
+    Column(Modifier.fillMaxWidth()) {
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(168.dp)
-                .clip(RoundedCornerShape(22.dp))
-                .background(NoduqColors.inset)
-                .border(1.5.dp, NoduqColors.line, RoundedCornerShape(22.dp))
-                .padding(10.dp),
+                .height(240.dp)
+                .onGloballyPositioned { sceneCoords = it },
         ) {
-            Column {
+            Canvas(Modifier.fillMaxSize()) {
+                fun rectOf(target: LayoutCoordinates?): Rect? {
+                    val scene = sceneCoords
+                    if (scene == null || target == null || !scene.isAttached || !target.isAttached) return null
+                    val origin = scene.localPositionOf(target, Offset.Zero)
+                    return Rect(origin.x, origin.y, origin.x + target.size.width, origin.y + target.size.height)
+                }
+                val owner = rectOf(ownerCoords) ?: return@Canvas
+                val nqBox = rectOf(nqCoords) ?: return@Canvas
+                val emp = rectOf(empCoords) ?: return@Canvas
+                val pos = rectOf(posCoords) ?: return@Canvas
+                if (owner.width < 4f || nqBox.width < 4f) return@Canvas
+                val nodeR = nqBox.width / 2f + 8.dp.toPx()
+                val o = Offset(owner.right, owner.center.y)
+                val n = Offset(nqBox.center.x, nqBox.center.y)
+                val e = Offset(emp.left, emp.center.y)
+                val p = Offset(pos.left, pos.center.y)
+                val trunkStart = o
+                val trunkEnd = Offset(n.x - nodeR, n.y)
+                val fork = Offset(n.x + nodeR, n.y)
+                fun sweep(to: Offset): Pair<Offset, Offset> {
+                    val dx = (to.x - fork.x).coerceAtLeast(1f)
+                    return Offset(fork.x + dx * 0.62f, fork.y) to Offset(fork.x + dx * 0.82f, to.y)
+                }
+                val (upC1, upC2) = sweep(e)
+                val (downC1, downC2) = sweep(p)
+                val trunk = Path().apply {
+                    moveTo(trunkStart.x, trunkStart.y)
+                    lineTo(trunkEnd.x, trunkEnd.y)
+                }
+                val up = Path().apply {
+                    moveTo(fork.x, fork.y)
+                    cubicTo(upC1.x, upC1.y, upC2.x, upC2.y, e.x, e.y)
+                }
+                val down = Path().apply {
+                    moveTo(fork.x, fork.y)
+                    cubicTo(downC1.x, downC1.y, downC2.x, downC2.y, p.x, p.y)
+                }
+                val stroke = Stroke(
+                    width = 1.9.dp.toPx(),
+                    cap = StrokeCap.Round,
+                    pathEffect = PathEffect.dashPathEffect(
+                        floatArrayOf(5.dp.toPx(), 8.dp.toPx()),
+                        if (reduce) 0f else dash,
+                    ),
+                )
+                val wire = NoduqColors.cyan.copy(alpha = 0.78f)
+                drawPath(trunk, wire, style = stroke)
+                drawPath(up, wire, style = stroke)
+                drawPath(down, wire, style = stroke)
+                if (!reduce) {
+                    val t = cycle
+                    val r = 5.2.dp.toPx()
+                    fun dot(
+                        from: Offset,
+                        to: Offset,
+                        start: Float,
+                        end: Float,
+                        cubic: Pair<Offset, Offset>? = null,
+                        fadeOut: Boolean = true,
+                    ) {
+                        if (t < start || t > end) return
+                        val local = ((t - start) / (end - start)).coerceIn(0f, 1f)
+                        val fade = when {
+                            local < 0.08f -> local / 0.08f
+                            fadeOut && local > 0.9f -> (1f - local) / 0.1f
+                            else -> 1f
+                        }
+                        val at = if (cubic == null) {
+                            Offset(
+                                from.x + (to.x - from.x) * local,
+                                from.y + (to.y - from.y) * local,
+                            )
+                        } else {
+                            cubicPoint(from, cubic.first, cubic.second, to, local)
+                        }
+                        drawCircle(NoduqColors.cyan, r, at, alpha = fade)
+                    }
+                    // Una bolita entra al nodo; al llegar se parte en dos.
+                    dot(trunkStart, n, 0.00f, 0.42f, fadeOut = false)
+                    dot(fork, e, 0.40f, 0.96f, upC1 to upC2)
+                    dot(fork, p, 0.40f, 0.96f, downC1 to downC2)
+                }
+            }
+            NoticeCard(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .onGloballyPositioned { ownerCoords = it },
+                icon = Phosphor.DeviceMobile,
+                title = "Notificación Banco",
+                lifted = true,
+            ) {
                 Box(
                     Modifier
-                        .align(Alignment.CenterHorizontally)
-                        .padding(bottom = 10.dp)
-                        .size(width = 36.dp, height = 4.dp)
-                        .clip(CircleShape)
-                        .background(NoduqColors.line),
+                        .clip(RoundedCornerShape(99.dp))
+                        .background(NoduqColors.cyan.copy(alpha = 0.10f))
+                        .border(1.dp, NoduqColors.cyan.copy(alpha = 0.20f), RoundedCornerShape(99.dp))
+                        .padding(horizontal = 8.dp, vertical = 3.dp),
+                ) {
+                    Text("Bancolombia", color = NoduqColors.cyan, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                }
+                Text(
+                    "$ 5.000",
+                    color = NoduqColors.ink,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 20.sp,
+                    letterSpacing = (-0.4).sp,
                 )
-                content()
+            }
+            Box(
+                Modifier
+                    .align(Alignment.Center)
+                    .size(40.dp)
+                    .graphicsLayer {
+                        val s = if (reduce) 1f else nodePulse
+                        scaleX = s
+                        scaleY = s
+                    }
+                    .clip(CircleShape)
+                    .background(NoduqColors.night)
+                    .border(1.dp, NoduqColors.cyan.copy(alpha = 0.7f), CircleShape)
+                    .onGloballyPositioned { nqCoords = it },
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    painter = painterResource(Res.drawable.logo_nq_cian_noche),
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            Column(
+                Modifier.align(Alignment.CenterEnd),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+                horizontalAlignment = Alignment.End,
+            ) {
+                NoticeCard(
+                    modifier = Modifier.onGloballyPositioned { empCoords = it },
+                    icon = Phosphor.DeviceMobile,
+                    title = "Teléfono Empleado",
+                ) {
+                    StatusBanner("Pago verificado $ 5.000")
+                }
+                NoticeCard(
+                    modifier = Modifier.onGloballyPositioned { posCoords = it },
+                    icon = Phosphor.Monitor,
+                    title = "Web",
+                ) {
+                    StatusBanner("$ 5.000 confirmado", pos = true)
+                }
             }
         }
-        Spacer(Modifier.height(8.dp))
-        Text(label, color = NoduqColors.muted, fontSize = 12.sp)
+        Spacer(Modifier.height(16.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("DUEÑO", color = NoduqColors.muted, fontSize = 10.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.4.sp)
+            Text("EMPLEADO / LOCAL", color = NoduqColors.muted, fontSize = 10.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.4.sp)
+        }
+    }
+}
+
+private fun cubicPoint(p0: Offset, p1: Offset, p2: Offset, p3: Offset, t: Float): Offset {
+    val u = 1f - t
+    val tt = t * t
+    val uu = u * u
+    return Offset(
+        uu * u * p0.x + 3f * uu * t * p1.x + 3f * u * tt * p2.x + tt * t * p3.x,
+        uu * u * p0.y + 3f * uu * t * p1.y + 3f * u * tt * p2.y + tt * t * p3.y,
+    )
+}
+
+@Composable
+private fun NoticeCard(
+    modifier: Modifier = Modifier,
+    icon: ImageVector,
+    title: String,
+    lifted: Boolean = false,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(
+        modifier
+            .width(132.dp)
+            .then(
+                if (lifted) {
+                    Modifier.shadow(
+                        elevation = 10.dp,
+                        shape = RoundedCornerShape(16.dp),
+                        ambientColor = Color(0x40021113),
+                        spotColor = Color(0x40021113),
+                    )
+                } else {
+                    Modifier
+                },
+            )
+            .clip(RoundedCornerShape(16.dp))
+            .background(NoticeFill)
+            .border(1.dp, NoticeLine, RoundedCornerShape(16.dp))
+            .padding(horizontal = 10.dp, vertical = 11.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(icon, null, tint = NoduqColors.muted, modifier = Modifier.size(14.dp))
+            Text(
+                title,
+                color = NoduqColors.muted,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Normal,
+                lineHeight = 14.sp,
+                maxLines = 2,
+            )
+        }
+        content()
     }
 }
 
 @Composable
-private fun BankChip(amount: String, glow: Float) {
-    Column(
+private fun StatusBanner(text: String, pos: Boolean = false) {
+    val wash = if (pos) NoduqColors.ok else NoduqColors.cyan
+    Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(NoduqColors.card)
-            .border(1.dp, NoduqColors.cyan.copy(alpha = 0.25f + glow * 0.5f), RoundedCornerShape(12.dp))
-            .padding(10.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+            .clip(RoundedCornerShape(10.dp))
+            .background(wash.copy(alpha = 0.10f))
+            .border(1.dp, wash.copy(alpha = 0.20f), RoundedCornerShape(10.dp))
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Text("Bancolombia", color = NoduqColors.cyan, fontSize = 11.sp, fontWeight = FontWeight.Medium)
-        Text("Pago recibido", color = NoduqColors.muted, fontSize = 10.sp)
-        Text(amount, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
+        Icon(Phosphor.Check, null, tint = wash, modifier = Modifier.size(12.dp).padding(top = 1.dp))
+        Text(
+            text,
+            color = NoduqColors.ink,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+            lineHeight = 14.sp,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
 @Composable
 private fun SmsStep(vm: AppViewModel) {
     var privacy by remember { mutableStateOf(false) }
-    val scan = rememberInfiniteTransition(label = "scan")
-    val sweep by scan.animateFloat(0f, 1f, infiniteRepeatable(tween(1800, easing = LinearEasing), RepeatMode.Restart), label = "scan-x")
+    var skipConfirm by remember { mutableStateOf(false) }
     StepBody(
-        title = "Rastreo de pagos por SMS",
-        lede = "Leemos los mensajes de texto de tu banco en segundo plano para validar los ingresos automáticamente.",
-        art = {
-            Box {
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(Color(0xFF1C1C1E))
-                        .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(20.dp))
-                        .padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Box(
-                            Modifier
-                                .size(34.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF34C759)),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(Phosphor.ChatText, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                        }
-                        Column {
-                            Text("Bancolombia", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                            Text("ahora", color = Color.White.copy(alpha = 0.45f), fontSize = 11.sp)
-                        }
-                    }
-                    Text(
-                        highlightText(SmsBody, listOf("DROGUERIA RICKY", "$5,000.00", "19:38")),
-                        color = Color.White.copy(alpha = 0.88f),
-                        fontSize = 13.sp,
-                        lineHeight = 19.sp,
-                    )
-                }
-                Box(
-                    Modifier
-                        .matchParentSize()
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(
-                            Brush.horizontalGradient(
-                                colorStops = arrayOf(
-                                    (sweep - 0.12f).coerceIn(0f, 1f) to Color.Transparent,
-                                    sweep.coerceIn(0f, 1f) to NoduqColors.cyan.copy(alpha = 0.28f),
-                                    (sweep + 0.12f).coerceIn(0f, 1f) to Color.Transparent,
-                                ),
-                            ),
-                        ),
-                )
-            }
-        },
+        title = "Detección automática por SMS",
+        lede = "Leemos las notificaciones bancarias en segundo plano para validar los pagos de tu negocio al instante.",
+        art = { SmsExampleCard() },
         footer = {
             vm.error?.let { Banner(it) }
             PrimaryButton(
@@ -344,24 +503,172 @@ private fun SmsStep(vm: AppViewModel) {
                 hero = true,
                 onClick = { vm.onboardGrantSms() },
             )
-            QuietButton("Saber más sobre la privacidad de tus datos") { privacy = true }
-            QuietButton("Ahora no") { vm.goOnboard(2) }
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                TextButton(
+                    onClick = { privacy = true },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 40.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                    colors = ButtonDefaults.textButtonColors(contentColor = NoduqColors.cyan),
+                ) {
+                    Text(
+                        "Saber más sobre la privacidad de tus datos",
+                        color = NoduqColors.cyan,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                DiscreteSkipLink("Ahora no") { skipConfirm = true }
+            }
         },
     )
     if (privacy) {
-        AlertDialog(
-            onDismissRequest = { privacy = false },
-            containerColor = NoduqColors.raised,
-            title = { Text("Privacidad", color = Color.White) },
-            text = {
-                Text(
-                    "NODUQ solo mira el SMS del 85540 de Bancolombia. El resto de la bandeja no se lee, no se guarda y no se comparte.",
-                    color = NoduqColors.muted,
-                    fontSize = 15.sp,
-                    lineHeight = 22.sp,
-                )
-            },
-            confirmButton = { QuietButton("Entendido") { privacy = false } },
+        NoduqDialog(onDismiss = { privacy = false }) {
+            Text(
+                "¿Por qué necesitamos este permiso?",
+                color = Color.White,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 20.sp,
+                lineHeight = 26.sp,
+            )
+            Text(
+                "Para que NODUQ pueda avisar a tu equipo en tiempo real cada vez que un cliente te paga por QR, sin que tengas que revisar el teléfono ni mandar capturas manualmente.",
+                color = NoduqColors.ink,
+                fontSize = 15.sp,
+                lineHeight = 22.sp,
+            )
+            Text(
+                "Solo analizamos las notificaciones de remitentes oficiales de entidades financieras. Tu bandeja personal no se lee, no se guarda ni se comparte jamás.",
+                color = NoduqColors.muted,
+                fontSize = 14.sp,
+                lineHeight = 21.sp,
+            )
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                QuietButton("Entendido") { privacy = false }
+            }
+        }
+    }
+    if (skipConfirm) {
+        NoduqDialog(onDismiss = { skipConfirm = false }) {
+            Box(
+                Modifier
+                    .size(52.dp)
+                    .clip(CircleShape)
+                    .background(NoduqColors.cyan.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Phosphor.WarningCircle, null, tint = NoduqColors.cyan, modifier = Modifier.size(26.dp))
+            }
+            Text(
+                "¿Seguro que quieres omitir?",
+                color = Color.White,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 20.sp,
+                lineHeight = 26.sp,
+            )
+            Text(
+                "Sin este permiso, NODUQ no podrá validar los pagos de tu QR en tiempo real. Tu equipo no recibirá las notificaciones automáticas en el mostrador.",
+                color = NoduqColors.muted,
+                fontSize = 15.sp,
+                lineHeight = 22.sp,
+            )
+            PrimaryButton(
+                "Entendido, activar permiso",
+                loading = vm.busy,
+                onClick = {
+                    skipConfirm = false
+                    vm.onboardGrantSms()
+                },
+            )
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                DiscreteSkipLink("Continuar de todos modos") {
+                    skipConfirm = false
+                    vm.goOnboard(2)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SmsExampleCard() {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(NoticeFill)
+            .border(1.dp, NoticeLine, RoundedCornerShape(16.dp))
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(Phosphor.Chat, null, tint = NoduqColors.cyan, modifier = Modifier.size(18.dp))
+            Text(
+                "SMS de confirmación recibido",
+                color = NoduqColors.ink.copy(alpha = 0.72f),
+                fontWeight = FontWeight.Normal,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+            )
+        }
+        Column {
+            Text("Bancolombia", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            Text("ahora", color = NoduqColors.muted, fontSize = 11.sp)
+        }
+        Text(
+            highlightText(SmsBody, listOf("MI NEGOCIO", "$5,000.00", "19:38")),
+            color = NoduqColors.ink.copy(alpha = 0.88f),
+            fontSize = 13.sp,
+            lineHeight = 19.sp,
+        )
+    }
+}
+
+@Composable
+private fun NoduqDialog(
+    onDismiss: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 22.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(NoticeFill)
+                .border(1.dp, NoticeLine, RoundedCornerShape(16.dp))
+                .padding(22.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            content = content,
+        )
+    }
+}
+
+@Composable
+private fun DiscreteSkipLink(text: String, onClick: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    TextButton(
+        onClick = onClick,
+        interactionSource = interaction,
+        modifier = Modifier.heightIn(min = 40.dp),
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+        colors = ButtonDefaults.textButtonColors(contentColor = NoduqColors.muted),
+    ) {
+        Text(
+            text,
+            color = if (pressed) Color.White else NoduqColors.muted,
+            fontWeight = FontWeight.Normal,
+            fontSize = 14.sp,
         )
     }
 }
