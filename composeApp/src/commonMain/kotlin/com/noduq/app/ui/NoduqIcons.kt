@@ -175,6 +175,40 @@ object NoduqIcons {
         }
     }
 
+    val Copy: ImageVector by lazy {
+        strokeIcon("noduq.copy") {
+            moveTo(8f, 8f)
+            horizontalLineTo(20f)
+            verticalLineTo(22f)
+            horizontalLineTo(8f)
+            close()
+            moveTo(16f, 8f)
+            verticalLineTo(4f)
+            horizontalLineTo(4f)
+            verticalLineTo(16f)
+            horizontalLineTo(8f)
+        }
+    }
+
+    val Trash: ImageVector by lazy {
+        strokeIcon("noduq.trash") {
+            moveTo(3f, 6f)
+            horizontalLineTo(21f)
+            moveTo(8f, 6f)
+            verticalLineTo(4f)
+            horizontalLineTo(16f)
+            verticalLineTo(6f)
+            moveTo(19f, 6f)
+            verticalLineTo(20f)
+            horizontalLineTo(5f)
+            verticalLineTo(6f)
+            moveTo(10f, 11f)
+            verticalLineTo(17f)
+            moveTo(14f, 11f)
+            verticalLineTo(17f)
+        }
+    }
+
     val Mail: ImageVector by lazy {
         strokeIcon("noduq.mail") {
             moveTo(20f, 4f)

@@ -332,7 +332,6 @@ fun OwnerSetupScreen(vm: AppViewModel) {
         title = "Tu comercio",
         lede = "Así aparece en NODUQ. Los avisos salen de los remitentes de Bancolombia; no hay que pegar números de cuenta.",
         onBack = { vm.ownerSignOut() },
-        backLabel = "Salir",
     ) {
         NoduqField(
             org,
@@ -473,61 +472,165 @@ private fun ResetSentCard() {
 
 @Composable
 fun OwnerPlanScreen(vm: AppViewModel) {
-    AuthScaffold(
-        title = "Activa NODUQ",
-        lede = "SMS del 85540 y correo de Bancolombia. $38.900 al mes. Si sales ahora, volvemos aquí hasta que el plan quede pago.",
-        onBack = { vm.ownerSignOut() },
-        backLabel = "Salir",
-        kicker = "Plan",
+    OnboardingShell(
+        onLeave = { vm.ownerSignOut() },
+        footer = {
+            vm.error?.let { Banner(it) }
+            PrimaryButton(
+                text = if (vm.busy) "Activando…" else "Suscribirme por $38.900/mes",
+                loading = vm.busy,
+                hero = true,
+                onClick = { vm.buyPlan() },
+            )
+            Text(
+                "Cancela cuando quieras. El cobro es seguro.",
+                color = NoduqColors.muted,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+            )
+        },
     ) {
         Text(
-            "Android · SMS + correo",
+            "Activa tu suscripción",
+            style = androidx.compose.material3.MaterialTheme.typography.headlineLarge,
             color = NoduqColors.ink,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 20.sp,
         )
         Text(
-            "El mostrador ve el aviso en cuanto llega el mensaje. El correo confirma el mismo pago.",
+            "Recibe avisos de pago en el mostrador, en el momento.",
             color = NoduqColors.muted,
             fontSize = 16.sp,
             lineHeight = 24.sp,
         )
-        vm.error?.let { Banner(it) }
-        PrimaryButton(
-            text = if (vm.busy) "Activando…" else "Activar plan",
-            loading = vm.busy,
-            onClick = { vm.buyPlan() },
+        Row(
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                "$38.900",
+                style = androidx.compose.material3.MaterialTheme.typography.displayLarge.copy(
+                    color = NoduqColors.cyan,
+                    fontSize = 56.sp,
+                    lineHeight = 56.sp,
+                    letterSpacing = (-1.8).sp,
+                    fontFeatureSettings = "tnum",
+                ),
+            )
+            Text(
+                "/mes",
+                color = NoduqColors.muted,
+                fontWeight = FontWeight.Medium,
+                fontSize = 18.sp,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+        }
+        PlanBenefitRow(
+            title = "Avisos al instante",
+            body = "Suena en el mostrador apenas entra el pago.",
+        )
+        PlanBenefitRow(
+            title = "Doble verificación",
+            body = "El comprobante de Bancolombia y el correo confirman el mismo pago.",
+        )
+        PlanBenefitRow(
+            title = "Multi-empleado",
+            body = "Todo el equipo ve el aviso en el momento.",
         )
     }
 }
 
 @Composable
 fun OwnerPermissionsScreen(vm: AppViewModel) {
-    AuthScaffold(
-        title = "Permisos del teléfono",
-        lede = "Sin avisos y sin SMS del 85540, el mostrador no se entera del QR.",
-        onBack = { vm.ownerSignOut() },
-        backLabel = "Salir",
-        kicker = "Onboarding",
+    val ready = !vm.needsPermissionSetup(askSms = true)
+    OnboardingShell(
+        onLeave = { vm.ownerSignOut() },
+        footer = {
+            vm.error?.let { Banner(it) }
+            PrimaryButton(
+                text = "Continuar al panel",
+                enabled = ready,
+                hero = true,
+                onClick = { vm.finishPermissions() },
+            )
+        },
     ) {
-        PermissionCard(
-            askSms = true,
-            notifications = vm.notificationsAllowed,
-            sms = vm.smsAllowed,
-            onAskNotifications = { vm.askNotifications() },
-            onAskSms = { vm.askSms() },
+        Text(
+            "Configuración de alertas",
+            style = androidx.compose.material3.MaterialTheme.typography.headlineLarge,
+            color = NoduqColors.ink,
+        )
+        Text(
+            "Concede estos dos permisos para que el mostrador reciba los avisos automáticamente.",
+            color = NoduqColors.muted,
+            fontSize = 16.sp,
+            lineHeight = 24.sp,
+        )
+        PermissionGrantCard(
+            icon = Phosphor.Bell,
+            title = "Notificaciones de pantalla y sonido",
+            body = "Permite que el teléfono suene en el mostrador aunque la pantalla esté bloqueada o la app cerrada.",
+            state = vm.notificationsAllowed,
+            onAsk = { vm.askNotifications() },
             onOpenSettings = { vm.openSystemSettings() },
         )
-        vm.error?.let { Banner(it) }
-        if (vm.needsPermissionSetup(askSms = true)) {
-            Text(
-                "Concédelos para seguir. Si los bloqueaste, ábrelos en ajustes.",
-                color = NoduqColors.muted,
-                fontSize = 15.sp,
-                lineHeight = 22.sp,
-            )
-        } else {
-            PrimaryButton("Entrar al mostrador", onClick = { vm.finishPermissions() })
+        PermissionGrantCard(
+            icon = Phosphor.ChatText,
+            title = "Detección de pagos por SMS",
+            body = "Permite detectar automáticamente los comprobantes de Bancolombia. El resto de la bandeja no se toca.",
+            state = vm.smsAllowed,
+            onAsk = { vm.askSms() },
+            onOpenSettings = { vm.openSystemSettings() },
+        )
+        PrivacyBadge(
+            "Privacidad protegida: NODUQ solo procesa los comprobantes de transferencia. Tus chats y mensajes personales jamás se leen, guardan ni se comparten.",
+        )
+    }
+}
+
+@Composable
+private fun OnboardingShell(
+    onLeave: () -> Unit,
+    footer: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .navigationBarsPadding(),
+    ) {
+        Row(
+            Modifier.padding(start = 10.dp, top = 4.dp, end = 22.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BackIconButton(onClick = onLeave)
+            BrandMark(compact = true)
+        }
+        BoxWithConstraints(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+        ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = maxHeight)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 22.dp)
+                    .padding(bottom = 12.dp),
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Column(
+                    Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    content = content,
+                )
+                Spacer(Modifier.height(20.dp))
+                Column(
+                    Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    content = footer,
+                )
+            }
         }
     }
 }

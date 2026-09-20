@@ -530,6 +530,10 @@ class AppViewModel(
         revealed = null
     }
 
+    fun clearInfo() {
+        info = null
+    }
+
     private fun ownerDestination(): Screen {
         val shop = workspace
         return when {
