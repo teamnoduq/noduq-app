@@ -120,6 +120,13 @@ internal object Phosphor {
         )
     }
 
+    val Envelope: ImageVector by lazy {
+        phosphorFill(
+            name = "Envelope",
+            path = "M224,48H32a8,8,0,0,0-8,8V192a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A8,8,0,0,0,224,48Zm-96,85.15L52.57,64H203.43ZM216,192H40V74.19l82.59,75.71a8,8,0,0,0,10.82,0L216,74.19Z",
+        )
+    }
+
     val WarningCircle: ImageVector by lazy {
         phosphorFill(
             name = "WarningCircle",

@@ -482,6 +482,7 @@ fun OwnerPlanScreen(vm: AppViewModel) {
                 hero = true,
                 onClick = { vm.buyPlan() },
             )
+            QuietButton("Ahora no") { vm.finishOnboarding() }
             Text(
                 "Cancela cuando quieras. El cobro es seguro.",
                 color = NoduqColors.muted,

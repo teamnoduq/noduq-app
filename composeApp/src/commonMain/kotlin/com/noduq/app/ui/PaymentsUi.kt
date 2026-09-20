@@ -72,6 +72,7 @@ import com.noduq.app.localWeekStartIso
 import com.noduq.app.motionEnabled
 import com.noduq.app.momentIso
 import com.noduq.app.nextDayStartIsoFromUtcMillis
+import com.noduq.app.planActive
 import com.noduq.app.theme.NoduqColors
 import com.noduq.app.theme.NoduqMotion
 import com.noduq.app.titledDay
@@ -209,7 +210,10 @@ fun PaymentsScreen(vm: AppViewModel) {
                     Modifier.fillMaxSize().padding(horizontal = 32.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    EmptyPayments(todayish = vm.payRange == "todos" || vm.payRange == "hoy")
+                    EmptyPayments(
+                        todayish = vm.payRange == "todos" || vm.payRange == "hoy",
+                        planActive = vm.workspace?.planActive() == true,
+                    )
                 }
                 else -> LazyColumn(
                     Modifier
@@ -451,7 +455,7 @@ private fun PaymentSkeletonCard() {
 }
 
 @Composable
-private fun EmptyPayments(todayish: Boolean) {
+private fun EmptyPayments(todayish: Boolean, planActive: Boolean) {
     val pulse = rememberInfiniteTransition(label = "empty")
     val wash by pulse.animateFloat(
         initialValue = 0.16f,
@@ -488,7 +492,11 @@ private fun EmptyPayments(todayish: Boolean) {
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
         Text(
-            "Los pagos confirmados aparecerán aquí automáticamente.",
+            if (!planActive) {
+                "Sin plan, NODUQ no valida ni avisa los pagos. Actívalo en Cuenta."
+            } else {
+                "Los pagos confirmados aparecerán aquí automáticamente."
+            },
             color = NoduqColors.muted,
             fontSize = 15.sp,
             lineHeight = 22.sp,

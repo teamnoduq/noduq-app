@@ -41,9 +41,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -72,6 +76,8 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -80,6 +86,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.noduq.app.AppViewModel
 import com.noduq.app.motionEnabled
+import com.noduq.app.planActive
 import com.noduq.app.resources.Res
 import com.noduq.app.resources.logo_nq_cian_noche
 import com.noduq.app.theme.NoduqColors
@@ -88,10 +95,8 @@ import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.painterResource
 
 private const val ONBOARD_STEPS = 7
-private val SmsBody =
-    "Bancolombia: MI NEGOCIO, recibiste un pago de RONALDINHO ORTEGA RUIZ por $5,000.00 el 19/09/2026 a las 19:38."
-private val MailBody =
-    "Hola recibiste una transferencia de JOSE FRANCISCO PEROZA PABUENA por $5,000.00 el 19/09/2026 a las 19:38."
+private const val DefaultShopPreview = "MI NEGOCIO"
+private const val NoticePayer = "RONALDINHO ORTEGA RUIZ"
 
 @Composable
 fun OwnerOnboardScreen(vm: AppViewModel, step: Int) {
@@ -396,7 +401,7 @@ private fun WelcomeFlowArt() {
                     icon = Phosphor.Monitor,
                     title = "Web",
                 ) {
-                    StatusBanner("$ 5.000 confirmado", pos = true)
+                    StatusBanner("$ 5.000 confirmado")
                 }
             }
         }
@@ -463,8 +468,8 @@ private fun NoticeCard(
 }
 
 @Composable
-private fun StatusBanner(text: String, pos: Boolean = false) {
-    val wash = if (pos) NoduqColors.ok else NoduqColors.cyan
+private fun StatusBanner(text: String) {
+    val wash = NoduqColors.cyan
     Row(
         Modifier
             .fillMaxWidth()
@@ -494,7 +499,7 @@ private fun SmsStep(vm: AppViewModel) {
     StepBody(
         title = "Detección automática por SMS",
         lede = "Leemos las notificaciones bancarias en segundo plano para validar los pagos de tu negocio al instante.",
-        art = { SmsExampleCard() },
+        art = { BankNoticeCard(Phosphor.Chat, "SMS de confirmación recibido", "Bancolombia") },
         footer = {
             vm.error?.let { Banner(it) }
             PrimaryButton(
@@ -504,21 +509,7 @@ private fun SmsStep(vm: AppViewModel) {
                 onClick = { vm.onboardGrantSms() },
             )
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                TextButton(
-                    onClick = { privacy = true },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 40.dp),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                    colors = ButtonDefaults.textButtonColors(contentColor = NoduqColors.cyan),
-                ) {
-                    Text(
-                        "Saber más sobre la privacidad de tus datos",
-                        color = NoduqColors.cyan,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 14.sp,
-                        lineHeight = 20.sp,
-                        textAlign = TextAlign.Center,
-                    )
-                }
+                PrivacyLink { privacy = true }
             }
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 DiscreteSkipLink("Ahora no") { skipConfirm = true }
@@ -594,7 +585,13 @@ private fun SmsStep(vm: AppViewModel) {
 }
 
 @Composable
-private fun SmsExampleCard() {
+private fun BankNoticeCard(
+    icon: ImageVector,
+    kicker: String,
+    sender: String,
+    shop: String = DefaultShopPreview,
+    payer: String = NoticePayer,
+) {
     Column(
         Modifier
             .fillMaxWidth()
@@ -608,9 +605,9 @@ private fun SmsExampleCard() {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Icon(Phosphor.Chat, null, tint = NoduqColors.cyan, modifier = Modifier.size(18.dp))
+            Icon(icon, null, tint = NoduqColors.cyan, modifier = Modifier.size(18.dp))
             Text(
-                "SMS de confirmación recibido",
+                kicker,
                 color = NoduqColors.ink.copy(alpha = 0.72f),
                 fontWeight = FontWeight.Normal,
                 fontSize = 13.sp,
@@ -618,11 +615,11 @@ private fun SmsExampleCard() {
             )
         }
         Column {
-            Text("Bancolombia", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            Text(sender, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
             Text("ahora", color = NoduqColors.muted, fontSize = 11.sp)
         }
         Text(
-            highlightText(SmsBody, listOf("MI NEGOCIO", "$5,000.00", "19:38")),
+            bankNoticeAnnotated(shop, payer),
             color = NoduqColors.ink.copy(alpha = 0.88f),
             fontSize = 13.sp,
             lineHeight = 19.sp,
@@ -654,6 +651,25 @@ private fun NoduqDialog(
 }
 
 @Composable
+private fun PrivacyLink(onClick: () -> Unit) {
+    TextButton(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 40.dp),
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+        colors = ButtonDefaults.textButtonColors(contentColor = NoduqColors.cyan),
+    ) {
+        Text(
+            "Saber más sobre la privacidad de tus datos",
+            color = NoduqColors.cyan,
+            fontWeight = FontWeight.Medium,
+            fontSize = 14.sp,
+            lineHeight = 20.sp,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+@Composable
 private fun DiscreteSkipLink(text: String, onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -675,8 +691,8 @@ private fun DiscreteSkipLink(text: String, onClick: () -> Unit) {
 
 @Composable
 private fun GmailStep(vm: AppViewModel) {
-    val pulse = rememberInfiniteTransition(label = "gmail")
-    val blink by pulse.animateFloat(0.35f, 1f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "sync")
+    var privacy by remember { mutableStateOf(false) }
+    var skipConfirm by remember { mutableStateOf(false) }
     val connected = vm.gmail?.connected == true
     LaunchedEffect(Unit) { vm.loadGmail() }
     LaunchedEffect(connected) {
@@ -687,50 +703,13 @@ private fun GmailStep(vm: AppViewModel) {
     }
     StepBody(
         title = "Vincula tu correo bancario",
-        lede = "Muchos avisos llegan por email. Conecta la cuenta de Gmail donde tu banco envía los comprobantes.",
+        lede = "Muchos bancos envían comprobantes por email. Conecta la cuenta donde recibes los avisos de tus transferencias para validarlas al instante.",
         art = {
-            Box {
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(NoduqColors.card)
-                        .border(1.dp, NoduqColors.line, RoundedCornerShape(18.dp))
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    Text("notificaciones@bancolombia.com.co", color = NoduqColors.muted, fontSize = 11.sp)
-                    Text(
-                        "Transferencia recibida - DROGUERÍA RICKY",
-                        color = Color.White,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 15.sp,
-                        lineHeight = 20.sp,
-                    )
-                    Text(
-                        highlightText(MailBody, listOf("JOSE FRANCISCO PEROZA PABUENA", "$5,000.00", "19:38")),
-                        color = NoduqColors.ink,
-                        fontSize = 13.sp,
-                        lineHeight = 19.sp,
-                    )
-                    if (connected) {
-                        Text(vm.gmail?.address ?: "Gmail conectado", color = NoduqColors.ok, fontSize = 12.sp)
-                    }
-                }
-                Row(
-                    Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(10.dp)
-                        .clip(RoundedCornerShape(99.dp))
-                        .background(NoduqColors.ok.copy(alpha = 0.14f * blink + 0.08f))
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Icon(Phosphor.Check, null, tint = NoduqColors.ok.copy(alpha = blink), modifier = Modifier.size(12.dp))
-                    Text("Detectado automáticamente", color = NoduqColors.ok, fontSize = 10.sp, fontWeight = FontWeight.Medium)
-                }
-            }
+            BankNoticeCard(
+                Phosphor.Envelope,
+                "Correo bancario recibido",
+                "Notificación de Banco",
+            )
         },
         footer = {
             vm.error?.let { Banner(it) }
@@ -741,48 +720,114 @@ private fun GmailStep(vm: AppViewModel) {
                     loading = vm.busy,
                     label = "Vincular cuenta de Gmail",
                 )
-                QuietButton("Ahora no") { vm.goOnboard(3) }
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    PrivacyLink { privacy = true }
+                }
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    DiscreteSkipLink("Ahora no") { skipConfirm = true }
+                }
             }
         },
     )
+    if (privacy) {
+        NoduqDialog(onDismiss = { privacy = false }) {
+            Text(
+                "¿Por qué conectamos tu correo?",
+                color = Color.White,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 20.sp,
+                lineHeight = 26.sp,
+            )
+            Text(
+                "Para detectar las notificaciones de pago que tu banco no envía por SMS y asegurar que ningún cobro por QR quede sin validar.",
+                color = NoduqColors.ink,
+                fontSize = 15.sp,
+                lineHeight = 22.sp,
+            )
+            Text(
+                "Solo buscamos y leemos correos recibidos de remitentes oficiales de entidades financieras. No leemos, guardamos ni compartimos tus correos personales jamás.",
+                color = NoduqColors.muted,
+                fontSize = 14.sp,
+                lineHeight = 21.sp,
+            )
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                QuietButton("Entendido") { privacy = false }
+            }
+        }
+    }
+    if (skipConfirm) {
+        NoduqDialog(onDismiss = { skipConfirm = false }) {
+            Box(
+                Modifier
+                    .size(52.dp)
+                    .clip(CircleShape)
+                    .background(NoduqColors.cyan.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Phosphor.WarningCircle, null, tint = NoduqColors.cyan, modifier = Modifier.size(26.dp))
+            }
+            Text(
+                "¿Seguro que quieres omitir?",
+                color = Color.White,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 20.sp,
+                lineHeight = 26.sp,
+            )
+            Text(
+                "Sin este permiso, las transferencias que lleguen únicamente a tu correo no se notificarán automáticamente a tu equipo en el mostrador.",
+                color = NoduqColors.muted,
+                fontSize = 15.sp,
+                lineHeight = 22.sp,
+            )
+            PrimaryButton(
+                "Entendido, conectar correo",
+                loading = vm.busy,
+                onClick = {
+                    skipConfirm = false
+                    vm.connectGmail()
+                },
+            )
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                DiscreteSkipLink("Continuar de todos modos") {
+                    skipConfirm = false
+                    vm.goOnboard(3)
+                }
+            }
+        }
+    }
 }
 
 @Composable
 private fun ShopStep(vm: AppViewModel) {
+    var skipConfirm by remember { mutableStateOf(false) }
+    val previewShop = vm.onboardShop.trim().ifBlank { DefaultShopPreview }
     StepBody(
-        title = "¿Cómo se llama tu negocio?",
-        lede = "Escribe el nombre tal como aparece registrado en tus cuentas bancarias o comprobantes.",
+        title = "¿Cómo aparece tu negocio en los avisos bancarios?",
+        lede = "Escribe el nombre tal como aparece en los mensajes de confirmación de tu banco para identificar tus cobros sin errores.",
         art = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(NoduqColors.card)
-                        .border(1.dp, NoduqColors.cyan.copy(alpha = 0.4f), RoundedCornerShape(18.dp))
-                        .padding(16.dp),
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Así sale en el aviso", color = NoduqColors.muted, fontSize = 12.sp)
-                        Text(
-                            vm.onboardShop.ifBlank { "DROGUERÍA RICKY" },
-                            color = if (vm.onboardShop.isBlank()) NoduqColors.muted else Color.White,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 20.sp,
-                        )
-                    }
-                }
-                Text(
-                    "Ejemplo: si tu cuenta Nequi/Bancolombia dice “DROGUERÍA RICKY”, escríbelo idéntico.",
-                    color = NoduqColors.cyan.copy(alpha = 0.9f),
-                    fontSize = 13.sp,
-                    lineHeight = 18.sp,
-                )
-            }
+            BankNoticeCard(
+                Phosphor.Storefront,
+                "Vista previa de tus notificaciones",
+                "Bancolombia",
+                shop = previewShop,
+            )
         },
         extra = {
             Spacer(Modifier.height(18.dp))
-            NoduqField(vm.onboardShop, { vm.onboardShop = it }, "Nombre del negocio", enabled = !vm.busy)
+            ShopNameField(
+                value = vm.onboardShop,
+                onValueChange = { vm.typeOnboardShop(it) },
+                enabled = true,
+                isError = vm.error != null,
+                onDone = { vm.onboardSaveShop() },
+            )
+            Text(
+                "Ejemplo: Si tu banco te notifica como 'DROGUERÍA RICKY', escríbelo idéntico.",
+                color = NoduqColors.muted,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+                modifier = Modifier.padding(top = 8.dp),
+            )
             vm.error?.let {
                 Spacer(Modifier.height(10.dp))
                 Banner(it)
@@ -790,7 +835,92 @@ private fun ShopStep(vm: AppViewModel) {
         },
         footer = {
             PrimaryButton("Continuar", hero = true, enabled = !vm.busy, onClick = { vm.onboardSaveShop() })
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                DiscreteSkipLink("Ahora no") { skipConfirm = true }
+            }
         },
+    )
+    if (skipConfirm) {
+        NoduqDialog(onDismiss = { skipConfirm = false }) {
+            Box(
+                Modifier
+                    .size(52.dp)
+                    .clip(CircleShape)
+                    .background(NoduqColors.cyan.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Phosphor.WarningCircle, null, tint = NoduqColors.cyan, modifier = Modifier.size(26.dp))
+            }
+            Text(
+                "¿Seguro que quieres omitir?",
+                color = Color.White,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 20.sp,
+                lineHeight = 26.sp,
+            )
+            Text(
+                "Tu cuenta quedará como “Mi negocio”. Es un solo local por cuenta; puedes cambiar el nombre después.",
+                color = NoduqColors.muted,
+                fontSize = 15.sp,
+                lineHeight = 22.sp,
+            )
+            PrimaryButton(
+                "Escribir el nombre",
+                onClick = { skipConfirm = false },
+            )
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                DiscreteSkipLink("Continuar de todos modos") {
+                    skipConfirm = false
+                    vm.onboardSkipShop()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ShopNameField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    enabled: Boolean,
+    isError: Boolean,
+    onDone: () -> Unit,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+        enabled = enabled,
+        isError = isError,
+        label = { Text("Nombre del negocio") },
+        placeholder = { Text("Ej. Droguería Ricky", color = NoduqColors.muted) },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(
+            capitalization = KeyboardCapitalization.Words,
+            imeAction = ImeAction.Done,
+        ),
+        keyboardActions = KeyboardActions(onDone = { onDone() }),
+        textStyle = androidx.compose.material3.LocalTextStyle.current.copy(
+            color = Color.White,
+            fontSize = 16.sp,
+        ),
+        shape = RoundedCornerShape(12.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedTextColor = Color.White,
+            unfocusedTextColor = Color.White,
+            disabledTextColor = NoduqColors.muted,
+            focusedBorderColor = NoduqColors.cyan.copy(alpha = 0.30f),
+            unfocusedBorderColor = NoticeLine,
+            errorBorderColor = NoduqColors.danger,
+            focusedContainerColor = NoticeFill,
+            unfocusedContainerColor = NoticeFill,
+            disabledContainerColor = NoticeFill,
+            cursorColor = NoduqColors.cyan,
+            focusedLabelColor = NoduqColors.cyan,
+            unfocusedLabelColor = NoduqColors.muted,
+            focusedPlaceholderColor = NoduqColors.muted,
+            unfocusedPlaceholderColor = NoduqColors.muted,
+        ),
     )
 }
 
@@ -820,7 +950,13 @@ private fun NameStep(vm: AppViewModel) {
         },
         extra = {
             Spacer(Modifier.height(18.dp))
-            NoduqField(vm.onboardName, { vm.onboardName = it }, "Tu nombre", enabled = !vm.busy)
+            NoduqField(
+                vm.onboardName,
+                { vm.typeOnboardName(it) },
+                "Tu nombre",
+                imeAction = ImeAction.Done,
+                onIme = { vm.onboardSaveName() },
+            )
             vm.error?.let {
                 Spacer(Modifier.height(10.dp))
                 Banner(it)
@@ -839,6 +975,7 @@ private fun NameStep(vm: AppViewModel) {
 
 @Composable
 private fun PlanStep(vm: AppViewModel) {
+    var skipConfirm by remember { mutableStateOf(false) }
     var shown by remember { mutableIntStateOf(0) }
     val benefits = listOf(
         "Confirmación de pagos ilimitada",
@@ -894,18 +1031,62 @@ private fun PlanStep(vm: AppViewModel) {
                 hero = true,
                 onClick = { vm.buyPlan() },
             )
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                DiscreteSkipLink("Ahora no") { skipConfirm = true }
+            }
         },
     )
+    if (skipConfirm) {
+        NoduqDialog(onDismiss = { skipConfirm = false }) {
+            Box(
+                Modifier
+                    .size(52.dp)
+                    .clip(CircleShape)
+                    .background(NoduqColors.cyan.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Phosphor.WarningCircle, null, tint = NoduqColors.cyan, modifier = Modifier.size(26.dp))
+            }
+            Text(
+                "¿Seguro que quieres omitir?",
+                color = Color.White,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 20.sp,
+                lineHeight = 26.sp,
+            )
+            Text(
+                "Sin plan, NODUQ no valida ni avisa los pagos. Puedes activarlo después en Cuenta.",
+                color = NoduqColors.muted,
+                fontSize = 15.sp,
+                lineHeight = 22.sp,
+            )
+            PrimaryButton(
+                "Entendido, activar plan",
+                loading = vm.busy,
+                onClick = {
+                    skipConfirm = false
+                    vm.buyPlan()
+                },
+            )
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                DiscreteSkipLink("Continuar de todos modos") {
+                    skipConfirm = false
+                    vm.goOnboard(6)
+                }
+            }
+        }
+    }
 }
 
 @Composable
 private fun SuccessStep(vm: AppViewModel) {
     var checks by remember { mutableIntStateOf(0) }
+    val planOn = vm.workspace?.planActive() == true
     val lines = listOf(
-        "Negocio configurado",
-        "SMS vinculado",
-        "Gmail conectado",
-        "Plan activo",
+        "Negocio configurado" to true,
+        "SMS vinculado" to vm.readsBankSms,
+        "Gmail conectado" to (vm.gmail?.connected == true),
+        "Plan activo" to planOn,
     )
     LaunchedEffect(Unit) {
         lines.indices.forEach { i ->
@@ -913,15 +1094,20 @@ private fun SuccessStep(vm: AppViewModel) {
             checks = i + 1
         }
     }
-    val burst = checks >= 4
+    val revealed = checks >= lines.size
+    val burst = revealed && lines.all { it.second }
     val pop by animateFloatAsState(if (burst) 1f else 0f, tween(500), label = "confetti")
     StepBody(
-        title = "Todo listo",
-        lede = "Tu local ya puede recibir avisos de pago en el mostrador.",
+        title = if (planOn) "Todo listo" else "Cuenta lista",
+        lede = if (planOn) {
+            "Tu local ya puede recibir avisos de pago en el mostrador."
+        } else {
+            "Cuando actives el plan en Cuenta, los avisos llegan al mostrador."
+        },
         art = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                lines.forEachIndexed { i, line ->
-                    val on = i < checks
+                lines.forEachIndexed { i, (line, done) ->
+                    val on = i < checks && done
                     Row(
                         Modifier
                             .fillMaxWidth()
@@ -952,25 +1138,25 @@ private fun SuccessStep(vm: AppViewModel) {
             }
         },
         footer = {
-            PrimaryButton("Ir a mi panel de pagos", hero = true, enabled = checks >= 4, onClick = { vm.finishOnboarding() })
+            PrimaryButton("Ir a mi panel de pagos", hero = true, enabled = revealed, onClick = { vm.finishOnboarding() })
         },
     )
 }
 
-private fun highlightText(text: String, keys: List<String>) = buildAnnotatedString {
-    data class Hit(val start: Int, val end: Int)
-    val hits = keys.mapNotNull { key ->
-        val i = text.indexOf(key, ignoreCase = true)
-        if (i < 0) null else Hit(i, i + key.length)
-    }.sortedBy { it.start }
-    var last = 0
-    for (hit in hits) {
-        if (hit.start < last) continue
-        append(text.substring(last, hit.start))
+private fun bankNoticeAnnotated(shop: String, payer: String) = buildAnnotatedString {
+    val name = shop.trim().ifBlank { DefaultShopPreview }
+    fun mark(value: String) {
         withStyle(SpanStyle(color = NoduqColors.cyan, fontWeight = FontWeight.SemiBold)) {
-            append(text.substring(hit.start, hit.end))
+            append(value)
         }
-        last = hit.end
     }
-    if (last < text.length) append(text.substring(last))
+    append("Bancolombia: ")
+    mark(name)
+    append(", recibiste un pago de ")
+    mark(payer)
+    append(" por ")
+    mark("\$5,000.00")
+    append(" el 19/09/2026 a las ")
+    mark("19:38")
+    append(".")
 }

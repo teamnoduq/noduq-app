@@ -22,6 +22,10 @@ interface TokenStore {
     fun clear()
     fun onboardingStep(): Int?
     fun setOnboardingStep(step: Int?)
+    fun onboardShop(): String
+    fun setOnboardShop(value: String)
+    fun onboardName(): String
+    fun setOnboardName(value: String)
 }
 
 interface Clipboard {

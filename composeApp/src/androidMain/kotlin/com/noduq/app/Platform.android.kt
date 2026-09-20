@@ -233,8 +233,27 @@ class AndroidTokenStore(context: Context) : TokenStore {
     }
 
     override fun setOnboardingStep(step: Int?) {
-        if (step == null) prefs.edit().remove(ONBOARDING).apply()
-        else prefs.edit().putInt(ONBOARDING, step).apply()
+        if (step == null) {
+            prefs.edit()
+                .remove(ONBOARDING)
+                .remove(ONBOARD_SHOP)
+                .remove(ONBOARD_NAME)
+                .apply()
+        } else {
+            prefs.edit().putInt(ONBOARDING, step).apply()
+        }
+    }
+
+    override fun onboardShop(): String = prefs.getString(ONBOARD_SHOP, "") ?: ""
+
+    override fun setOnboardShop(value: String) {
+        prefs.edit().putString(ONBOARD_SHOP, value).apply()
+    }
+
+    override fun onboardName(): String = prefs.getString(ONBOARD_NAME, "") ?: ""
+
+    override fun setOnboardName(value: String) {
+        prefs.edit().putString(ONBOARD_NAME, value).apply()
     }
 
     private companion object {
@@ -244,5 +263,7 @@ class AndroidTokenStore(context: Context) : TokenStore {
         const val OWNER_EMAIL = "owner_email"
         const val EMPLOYEE = "employee_token"
         const val ONBOARDING = "onboarding_step"
+        const val ONBOARD_SHOP = "onboard_shop"
+        const val ONBOARD_NAME = "onboard_name"
     }
 }

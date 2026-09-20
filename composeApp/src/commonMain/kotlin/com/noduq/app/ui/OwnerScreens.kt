@@ -63,6 +63,7 @@ import com.noduq.app.EmployeeDto
 import com.noduq.app.OwnerTab
 import com.noduq.app.Screen
 import com.noduq.app.motionEnabled
+import com.noduq.app.planActive
 import com.noduq.app.theme.NoduqColors
 import com.noduq.app.theme.NoduqMotion
 
@@ -720,6 +721,27 @@ fun AccountScreen(vm: AppViewModel) {
                     "Guardar cambios",
                     loading = vm.busy,
                     onClick = { vm.saveAccount(displayName, orgName) },
+                )
+            }
+        }
+
+        val planOn = vm.workspace?.planActive() == true
+        AccountCard(
+            "Plan",
+            if (planOn) "Activo. NODUQ valida y avisa los pagos." else "Sin plan, NODUQ no valida ni avisa los pagos.",
+        ) {
+            if (planOn) {
+                Text(
+                    "$38.900 / mes · cancela cuando quieras.",
+                    color = NoduqColors.muted,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                )
+            } else {
+                PrimaryButton(
+                    if (vm.busy) "Activando…" else "Activar plan · $38.900/mes",
+                    loading = vm.busy,
+                    onClick = { vm.buyPlan() },
                 )
             }
         }

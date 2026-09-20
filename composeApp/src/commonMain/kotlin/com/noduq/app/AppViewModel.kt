@@ -64,8 +64,8 @@ class AppViewModel(
         private set
     var payRange by mutableStateOf("todos")
         private set
-    var onboardShop by mutableStateOf("")
-    var onboardName by mutableStateOf("")
+    var onboardShop by mutableStateOf(tokens.onboardShop())
+    var onboardName by mutableStateOf(tokens.onboardName())
     private var paySearchJob: Job? = null
 
     /** The aviso that just landed, so the screen can shout about it once. */
@@ -318,8 +318,7 @@ class AppViewModel(
                 tokens.saveOwner(access, session.refreshToken, session.user?.email ?: mail)
                 ownerEmail = session.user?.email ?: mail
                 tokens.setOnboardingStep(0)
-                onboardShop = ""
-                onboardName = ""
+                clearOnboardDrafts()
                 loadOwnerWorkspace(access)
             }
         }
@@ -345,6 +344,7 @@ class AppViewModel(
                     organizationName = name,
                 ),
             )
+            hydrateOnboardDrafts()
             if (tokens.onboardingStep() != null) {
                 goOnboard(5)
             } else {
@@ -570,7 +570,6 @@ class AppViewModel(
         val shop = workspace
         return when {
             shop == null -> Screen.OwnerSetup
-            !shop.planActive() -> Screen.OwnerPlan
             needsPermissionSetup(askSms = true) -> Screen.OwnerPermissions
             else -> Screen.OwnerHome()
         }
@@ -618,9 +617,22 @@ class AppViewModel(
 
     fun goOnboard(step: Int) {
         error = null
+        hydrateOnboardDrafts()
         val next = step.coerceIn(0, 6)
         tokens.setOnboardingStep(next)
         screen = Screen.OwnerOnboard(next)
+    }
+
+    fun typeOnboardShop(value: String) {
+        onboardShop = value
+        tokens.setOnboardShop(value)
+        error = null
+    }
+
+    fun typeOnboardName(value: String) {
+        onboardName = value
+        tokens.setOnboardName(value)
+        error = null
     }
 
     fun onboardBack() {
@@ -654,11 +666,53 @@ class AppViewModel(
             return
         }
         onboardShop = name
+        tokens.setOnboardShop(name)
+        val current = workspace?.organization?.name.orEmpty()
+        if (workspace != null && name != current) {
+            val token = requireOwnerToken() ?: return
+            launchWork("Guardando…") {
+                workspace = api.patchOrganization(token, PatchOrganizationRequest(name))
+                goOnboard(4)
+            }
+            return
+        }
+        goOnboard(4)
+    }
+
+    fun onboardSkipShop() {
+        onboardShop = "Mi negocio"
+        tokens.setOnboardShop(onboardShop)
         goOnboard(4)
     }
 
     fun onboardSaveName() {
-        bootstrap(onboardShop, onboardName)
+        val person = onboardName.trim()
+        if (person.length < 2 || person.length > 80) {
+            error = "El nombre debe tener entre 2 y 80 caracteres."
+            return
+        }
+        onboardName = person
+        tokens.setOnboardName(person)
+        if (onboardShop.trim().length < 2) {
+            val savedShop = workspace?.organization?.name.orEmpty()
+            onboardShop = if (savedShop.length in 2..80) savedShop else "Mi negocio"
+            tokens.setOnboardShop(onboardShop)
+        }
+        val current = workspace?.profile?.displayName.orEmpty()
+        if (workspace != null && person == current) {
+            goOnboard(5)
+            return
+        }
+        if (workspace != null) {
+            val token = requireOwnerToken() ?: return
+            launchWork("Guardando…") {
+                val profile = api.patchMe(token, PatchNameRequest(person))
+                workspace = workspace?.copy(profile = profile)
+                goOnboard(5)
+            }
+            return
+        }
+        bootstrap(onboardShop, person)
     }
 
     fun finishOnboarding() {
@@ -738,20 +792,44 @@ class AppViewModel(
                 val step = onboard ?: 0
                 tokens.setOnboardingStep(step)
                 if (onboard == null) {
-                    onboardShop = ""
-                    onboardName = ""
+                    clearOnboardDrafts()
                 }
                 screen = Screen.OwnerOnboard(step.coerceIn(0, 6))
                 return
             }
             throw cause
         }
+        hydrateOnboardDrafts()
         if (onboard != null) {
             screen = Screen.OwnerOnboard(onboard.coerceIn(0, 6))
             return
         }
         screen = ownerDestination()
         if (screen is Screen.OwnerHome) onSessionReady()
+    }
+
+    private fun hydrateOnboardDrafts() {
+        val shop = workspace?.organization?.name.orEmpty()
+        val person = workspace?.profile?.displayName.orEmpty()
+        if (onboardShop.isBlank()) {
+            val draft = tokens.onboardShop().ifBlank { shop }
+            if (draft.isNotBlank()) {
+                onboardShop = draft
+                tokens.setOnboardShop(draft)
+            }
+        }
+        if (onboardName.isBlank()) {
+            val draft = tokens.onboardName()
+            val saved = when {
+                draft.isNotBlank() -> draft
+                person.isNotBlank() && person != shop -> person
+                else -> ""
+            }
+            if (saved.isNotBlank()) {
+                onboardName = saved
+                tokens.setOnboardName(saved)
+            }
+        }
     }
 
     private fun upsertEmployee(created: CreatedEmployeeDto) {
@@ -806,9 +884,15 @@ class AppViewModel(
         payUntil = null
         payRange = "todos"
         gmail = null
+        clearOnboardDrafts()
+        screen = Screen.RoleGate
+    }
+
+    private fun clearOnboardDrafts() {
         onboardShop = ""
         onboardName = ""
-        screen = Screen.RoleGate
+        tokens.setOnboardShop("")
+        tokens.setOnboardName("")
     }
 
     private fun launchWork(busyLabel: String? = null, block: suspend () -> Unit) {
