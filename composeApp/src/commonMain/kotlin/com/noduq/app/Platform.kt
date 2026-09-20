@@ -20,6 +20,8 @@ interface TokenStore {
     fun employeeToken(): String?
     fun saveEmployee(token: String)
     fun clear()
+    fun onboardingStep(): Int?
+    fun setOnboardingStep(step: Int?)
 }
 
 interface Clipboard {

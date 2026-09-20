@@ -20,6 +20,7 @@ sealed interface Screen {
     data object OwnerPlan : Screen
     data object OwnerPermissions : Screen
     data object OwnerForgotPassword : Screen
+    data class OwnerOnboard(val step: Int) : Screen
     data class OwnerHome(val tab: OwnerTab = OwnerTab.Pagos) : Screen
     data object EmployeeLogin : Screen
     data object EmployeeWait : Screen
@@ -63,6 +64,8 @@ class AppViewModel(
         private set
     var payRange by mutableStateOf("todos")
         private set
+    var onboardShop by mutableStateOf("")
+    var onboardName by mutableStateOf("")
     private var paySearchJob: Job? = null
 
     /** The aviso that just landed, so the screen can shout about it once. */
@@ -94,8 +97,12 @@ class AppViewModel(
         }
     }
 
+    private var booted = false
+
     fun start() {
         readPermissions()
+        if (booted) return
+        booted = true
         viewModelScope.launch { restore() }
     }
 
@@ -140,7 +147,7 @@ class AppViewModel(
             workspace?.let { screen = ownerDestination() }
             if (screen is Screen.OwnerHome) onSessionReady()
         }
-        loadGmail()
+        refreshGmailAndAdvanceOnboard()
     }
 
     fun loadGmail() {
@@ -150,6 +157,23 @@ class AppViewModel(
                 gmail = asOwner { api.gmailStatus(it) }
             }
         }
+    }
+
+    private fun refreshGmailAndAdvanceOnboard() {
+        val token = tokens.ownerAccessToken() ?: return
+        viewModelScope.launch {
+            runCatching {
+                gmail = asOwner { api.gmailStatus(it) }
+            }
+            val now = screen
+            if (now is Screen.OwnerOnboard && now.step == 2 && gmail?.connected == true) {
+                goOnboard(3)
+            }
+        }
+    }
+
+    fun onGmailCallback() {
+        refreshGmailAndAdvanceOnboard()
     }
 
     fun connectGmail() {
@@ -239,10 +263,11 @@ class AppViewModel(
     }
 
     fun back() {
-        when (screen) {
+        when (val now = screen) {
             Screen.OwnerRegister -> go(Screen.OwnerLogin)
             Screen.OwnerForgotPassword -> go(Screen.OwnerLogin)
             Screen.OwnerLogin, Screen.EmployeeLogin -> go(Screen.RoleGate)
+            is Screen.OwnerOnboard -> onboardBack()
             else -> Unit
         }
     }
@@ -292,6 +317,9 @@ class AppViewModel(
                 }
                 tokens.saveOwner(access, session.refreshToken, session.user?.email ?: mail)
                 ownerEmail = session.user?.email ?: mail
+                tokens.setOnboardingStep(0)
+                onboardShop = ""
+                onboardName = ""
                 loadOwnerWorkspace(access)
             }
         }
@@ -317,8 +345,12 @@ class AppViewModel(
                     organizationName = name,
                 ),
             )
-            screen = ownerDestination()
-            if (screen is Screen.OwnerHome) onSessionReady()
+            if (tokens.onboardingStep() != null) {
+                goOnboard(5)
+            } else {
+                screen = ownerDestination()
+                if (screen is Screen.OwnerHome) onSessionReady()
+            }
         }
     }
 
@@ -569,8 +601,12 @@ class AppViewModel(
             val token = requireOwnerToken() ?: return@launchWork
             val plan = api.activatePlan(token)
             workspace = workspace?.copy(plan = plan)
-            screen = ownerDestination()
-            if (screen is Screen.OwnerHome) onSessionReady()
+            if (tokens.onboardingStep() != null) {
+                goOnboard(6)
+            } else {
+                screen = ownerDestination()
+                if (screen is Screen.OwnerHome) onSessionReady()
+            }
         }
     }
 
@@ -578,6 +614,57 @@ class AppViewModel(
         readPermissions()
         screen = ownerDestination()
         if (screen is Screen.OwnerHome) onSessionReady()
+    }
+
+    fun goOnboard(step: Int) {
+        error = null
+        val next = step.coerceIn(0, 6)
+        tokens.setOnboardingStep(next)
+        screen = Screen.OwnerOnboard(next)
+    }
+
+    fun onboardBack() {
+        val step = (screen as? Screen.OwnerOnboard)?.step ?: return
+        if (step <= 0) {
+            ownerSignOut()
+            return
+        }
+        goOnboard(step - 1)
+    }
+
+    fun onboardGrantSms() {
+        viewModelScope.launch {
+            try {
+                notificationsAllowed = AppGraph.permissions.requestNotifications()
+                smsAllowed = AppGraph.permissions.requestSms()
+                if (smsAllowed == PermissionState.Granted) {
+                    runCatching { AppGraph.bankSms.flushPending() }
+                }
+                syncDevice()
+            } finally {
+                goOnboard(2)
+            }
+        }
+    }
+
+    fun onboardSaveShop() {
+        val name = onboardShop.trim()
+        if (name.length < 2 || name.length > 80) {
+            error = "El nombre debe tener entre 2 y 80 caracteres."
+            return
+        }
+        onboardShop = name
+        goOnboard(4)
+    }
+
+    fun onboardSaveName() {
+        bootstrap(onboardShop, onboardName)
+    }
+
+    fun finishOnboarding() {
+        tokens.setOnboardingStep(null)
+        screen = Screen.OwnerHome()
+        onSessionReady()
     }
 
     private suspend fun restore() {
@@ -642,17 +729,29 @@ class AppViewModel(
     }
 
     private suspend fun loadOwnerWorkspace(token: String) {
+        val onboard = tokens.onboardingStep()
         try {
             workspace = api.getMe(token)
-            screen = ownerDestination()
-            if (screen is Screen.OwnerHome) onSessionReady()
         } catch (cause: ApiException) {
             if (cause.notProvisioned) {
-                screen = Screen.OwnerSetup
-            } else {
-                throw cause
+                workspace = null
+                val step = onboard ?: 0
+                tokens.setOnboardingStep(step)
+                if (onboard == null) {
+                    onboardShop = ""
+                    onboardName = ""
+                }
+                screen = Screen.OwnerOnboard(step.coerceIn(0, 6))
+                return
             }
+            throw cause
         }
+        if (onboard != null) {
+            screen = Screen.OwnerOnboard(onboard.coerceIn(0, 6))
+            return
+        }
+        screen = ownerDestination()
+        if (screen is Screen.OwnerHome) onSessionReady()
     }
 
     private fun upsertEmployee(created: CreatedEmployeeDto) {
@@ -707,6 +806,8 @@ class AppViewModel(
         payUntil = null
         payRange = "todos"
         gmail = null
+        onboardShop = ""
+        onboardName = ""
         screen = Screen.RoleGate
     }
 

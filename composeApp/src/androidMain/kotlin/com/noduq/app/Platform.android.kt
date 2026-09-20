@@ -227,11 +227,22 @@ class AndroidTokenStore(context: Context) : TokenStore {
         prefs.edit().clear().apply()
     }
 
+    override fun onboardingStep(): Int? {
+        if (!prefs.contains(ONBOARDING)) return null
+        return prefs.getInt(ONBOARDING, 0)
+    }
+
+    override fun setOnboardingStep(step: Int?) {
+        if (step == null) prefs.edit().remove(ONBOARDING).apply()
+        else prefs.edit().putInt(ONBOARDING, step).apply()
+    }
+
     private companion object {
         const val FILE = "noduq_secure"
         const val OWNER_ACCESS = "owner_access_token"
         const val OWNER_REFRESH = "owner_refresh_token"
         const val OWNER_EMAIL = "owner_email"
         const val EMPLOYEE = "employee_token"
+        const val ONBOARDING = "onboarding_step"
     }
 }

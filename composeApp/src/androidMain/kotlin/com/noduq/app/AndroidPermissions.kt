@@ -31,13 +31,17 @@ class AndroidPermissions(private val context: Context) : DevicePermissions {
     private var activity: ComponentActivity? = null
     private var launcher: ActivityResultLauncher<String>? = null
     private var answering: CancellableContinuation<Boolean>? = null
+    private var pendingPermission: String? = null
 
     fun attach(host: ComponentActivity) {
         activity = host
         launcher = host.registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            answering?.let { if (it.isActive) it.resume(granted) }
+            val waiter = answering
             answering = null
+            pendingPermission = null
+            if (waiter?.isActive == true) waiter.resume(granted)
         }
+        replayPendingAsk()
     }
 
     fun detach() {
@@ -86,10 +90,29 @@ class AndroidPermissions(private val context: Context) : DevicePermissions {
         history.edit().putBoolean(permission, true).apply()
         val granted = suspendCancellableCoroutine { waiting ->
             answering = waiting
-            waiting.invokeOnCancellation { answering = null }
+            pendingPermission = permission
+            waiting.invokeOnCancellation {
+                if (answering === waiting) {
+                    answering = null
+                    pendingPermission = null
+                }
+            }
             dialog.launch(permission)
         }
         if (granted) PermissionState.Granted else state(permission)
+    }
+
+    private fun replayPendingAsk() {
+        val permission = pendingPermission ?: return
+        val waiter = answering ?: return
+        if (!waiter.isActive) return
+        if (ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED) {
+            answering = null
+            pendingPermission = null
+            waiter.resume(true)
+            return
+        }
+        launcher?.launch(permission)
     }
 
     private fun asked(permission: String): Boolean = history.getBoolean(permission, false)

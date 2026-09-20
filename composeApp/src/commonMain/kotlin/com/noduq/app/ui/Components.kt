@@ -196,6 +196,7 @@ fun GoogleButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     loading: Boolean = false,
+    label: String = "Continuar con Google",
 ) {
     Button(
         onClick = onClick,
@@ -228,7 +229,7 @@ fun GoogleButton(
             Spacer(Modifier.width(12.dp))
         }
         Text(
-            if (loading) "Abriendo Google…" else "Continuar con Google",
+            if (loading) "Abriendo Google…" else label,
             color = NoduqColors.ink,
             fontWeight = FontWeight.SemiBold,
             fontSize = 16.sp,

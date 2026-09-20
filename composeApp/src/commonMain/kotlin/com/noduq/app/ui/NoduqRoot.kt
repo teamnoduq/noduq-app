@@ -50,6 +50,7 @@ fun NoduqRoot(vm: AppViewModel) {
                 Screen.OwnerPlan -> OwnerPlanScreen(vm)
                 Screen.OwnerPermissions -> OwnerPermissionsScreen(vm)
                 Screen.OwnerForgotPassword -> OwnerForgotPasswordScreen(vm)
+                is Screen.OwnerOnboard -> OwnerOnboardScreen(vm, screen.step)
                 is Screen.OwnerHome -> OwnerShell(vm, screen.tab)
                 Screen.EmployeeLogin -> EmployeeLoginScreen(vm)
                 Screen.EmployeeWait -> WaitingRoomScreen(vm)
@@ -58,7 +59,8 @@ fun NoduqRoot(vm: AppViewModel) {
         val canBack = vm.screen is Screen.OwnerLogin ||
             vm.screen is Screen.OwnerRegister ||
             vm.screen is Screen.OwnerForgotPassword ||
-            vm.screen is Screen.EmployeeLogin
+            vm.screen is Screen.EmployeeLogin ||
+            (vm.screen is Screen.OwnerOnboard && (vm.screen as Screen.OwnerOnboard).step < 6)
         BackNavigation(enabled = canBack) { vm.back() }
     }
 }
@@ -88,12 +90,14 @@ private fun Screen.depth(): Int = when (this) {
     Screen.OwnerLogin, Screen.EmployeeLogin -> 2
     Screen.OwnerRegister, Screen.OwnerForgotPassword -> 3
     Screen.OwnerSetup -> 4
-    Screen.OwnerPlan -> 5
+    is Screen.OwnerOnboard -> 4 + step
+    Screen.OwnerPlan -> 12
     Screen.OwnerPermissions -> 6
     is Screen.OwnerHome, Screen.EmployeeWait -> 7
 }
 
 private fun Screen.frameKey(): String = when (this) {
     is Screen.OwnerHome -> "OwnerHome"
+    is Screen.OwnerOnboard -> "OwnerOnboard"
     else -> this::class.simpleName ?: "Screen"
 }
