@@ -102,6 +102,8 @@ object AppGraph {
     lateinit var billing: ShopBilling
 }
 
+expect fun takeEmailAuthPayload(): EmailAuthPayload?
+
 expect fun createHttpClient(): io.ktor.client.HttpClient
 
 expect fun isoInstant(millis: Long): String

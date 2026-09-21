@@ -15,6 +15,7 @@ class MainActivity : ComponentActivity() {
             isAppearanceLightStatusBars = false
             isAppearanceLightNavigationBars = false
         }
+        EmailAuthInbox.capture(intent)
         googleAuth()?.attach(this)
         permissions()?.attach(this)
         billing()?.attach(this)
@@ -24,6 +25,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        EmailAuthInbox.capture(intent)
         googleAuth()?.onIntent(intent)
     }
 

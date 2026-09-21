@@ -193,6 +193,12 @@ data class SupabaseRecoverRequest(
 )
 
 @Serializable
+data class SupabaseResendRequest(
+    val type: String,
+    val email: String,
+)
+
+@Serializable
 data class SupabasePasswordGrant(
     val email: String,
     val password: String,

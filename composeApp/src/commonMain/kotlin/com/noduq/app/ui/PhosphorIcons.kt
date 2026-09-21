@@ -127,6 +127,13 @@ internal object Phosphor {
         )
     }
 
+    val Key: ImageVector by lazy {
+        phosphorFill(
+            name = "Key",
+            path = "M160,16A80.07,80.07,0,0,0,83.91,120.78L26.34,178.34A8,8,0,0,0,24,184v40a8,8,0,0,0,8,8H72a8,8,0,0,0,8-8V208H96a8,8,0,0,0,8-8V184h16a8,8,0,0,0,5.66-2.34l9.56-9.57A80,80,0,1,0,160,16Zm0,144a64,64,0,1,1,64-64A64.07,64.07,0,0,1,160,160Zm16-80a16,16,0,1,1,16,16A16,16,0,0,1,176,80Z",
+        )
+    }
+
     val WarningCircle: ImageVector by lazy {
         phosphorFill(
             name = "WarningCircle",

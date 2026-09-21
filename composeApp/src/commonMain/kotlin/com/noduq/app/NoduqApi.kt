@@ -169,17 +169,34 @@ class SupabaseAuthApi(
     suspend fun exchangePkce(authCode: String, codeVerifier: String): SupabaseSession =
         auth("token?grant_type=pkce", SupabasePkceGrant(authCode = authCode, codeVerifier = codeVerifier))
 
-    suspend fun signUp(email: String, password: String): SupabaseSession =
-        auth("signup", SupabasePasswordGrant(email, password))
+    suspend fun signUp(email: String, password: String, redirectTo: String): SupabaseSession =
+        auth("signup?redirect_to=${redirectTo.encodeURLParameter()}", SupabasePasswordGrant(email, password))
 
     suspend fun recoverPassword(email: String, redirectTo: String) {
-        val url = config.supabaseUrl.trimEnd('/') + "/auth/v1/recover?redirect_to=$redirectTo"
+        val url = config.supabaseUrl.trimEnd('/') + "/auth/v1/recover?redirect_to=${redirectTo.encodeURLParameter()}"
         val response = try {
             client.post(url) {
                 header("apikey", config.supabaseAnonKey)
                 header(HttpHeaders.Authorization, "Bearer ${config.supabaseAnonKey}")
                 contentType(ContentType.Application.Json)
                 setBody(SupabaseRecoverRequest(email))
+            }
+        } catch (_: Exception) {
+            throw ApiException(0, "NETWORK", "No se pudo hablar con el inicio de sesión.")
+        }
+        if (!response.status.isSuccess()) {
+            throw supabaseError(response)
+        }
+    }
+
+    suspend fun resendSignup(email: String, redirectTo: String) {
+        val url = config.supabaseUrl.trimEnd('/') + "/auth/v1/resend?redirect_to=${redirectTo.encodeURLParameter()}"
+        val response = try {
+            client.post(url) {
+                header("apikey", config.supabaseAnonKey)
+                header(HttpHeaders.Authorization, "Bearer ${config.supabaseAnonKey}")
+                contentType(ContentType.Application.Json)
+                setBody(SupabaseResendRequest(type = "signup", email = email))
             }
         } catch (_: Exception) {
             throw ApiException(0, "NETWORK", "No se pudo hablar con el inicio de sesión.")

@@ -1,5 +1,10 @@
 package com.noduq.app.ui
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -19,8 +24,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -33,10 +40,12 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.noduq.app.AppViewModel
@@ -300,7 +309,6 @@ fun OwnerRegisterScreen(vm: AppViewModel) {
                         PasswordMatchHint(password = password, confirm = confirm)
                     }
                     vm.error?.let { Banner(it) }
-                    vm.info?.let { Banner(it, tone = "ok") }
                     PrimaryButton(
                         text = if (vm.busy) "Creando…" else "Crear cuenta",
                         loading = vm.busy,
@@ -360,7 +368,6 @@ fun OwnerSetupScreen(vm: AppViewModel) {
 @Composable
 fun OwnerForgotPasswordScreen(vm: AppViewModel) {
     var email by rememberSaveable { mutableStateOf("") }
-    val sent = vm.info != null
     Column(
         Modifier
             .fillMaxSize()
@@ -395,37 +402,29 @@ fun OwnerForgotPasswordScreen(vm: AppViewModel) {
                         style = androidx.compose.material3.MaterialTheme.typography.headlineLarge,
                         color = NoduqColors.ink,
                     )
-                    if (sent) {
-                        ResetSentCard()
-                        PrimaryButton(
-                            text = "Volver a entrar",
-                            onClick = { vm.go(Screen.OwnerLogin) },
-                        )
-                    } else {
-                        Text(
-                            "Ingresa tu correo y te enviaremos un enlace para crear una nueva contraseña.",
-                            color = NoduqColors.muted,
-                            fontSize = 16.sp,
-                            lineHeight = 24.sp,
-                        )
-                        NoduqField(
-                            email,
-                            { email = it },
-                            "Correo",
-                            placeholder = "Correo",
-                            floatLabel = false,
-                            keyboardType = KeyboardType.Email,
-                            imeAction = ImeAction.Done,
-                            enabled = !vm.busy,
-                            onIme = { vm.requestPasswordReset(email) },
-                        )
-                        vm.error?.let { Banner(it) }
-                        PrimaryButton(
-                            text = if (vm.busy) "Enviando…" else "Enviar enlace",
-                            loading = vm.busy,
-                            onClick = { vm.requestPasswordReset(email) },
-                        )
-                    }
+                    Text(
+                        "Ingresa tu correo y te enviaremos un enlace para crear una nueva contraseña.",
+                        color = NoduqColors.muted,
+                        fontSize = 16.sp,
+                        lineHeight = 24.sp,
+                    )
+                    NoduqField(
+                        email,
+                        { email = it },
+                        "Correo",
+                        placeholder = "Correo",
+                        floatLabel = false,
+                        keyboardType = KeyboardType.Email,
+                        imeAction = ImeAction.Done,
+                        enabled = !vm.busy,
+                        onIme = { vm.requestPasswordReset(email) },
+                    )
+                    vm.error?.let { Banner(it) }
+                    PrimaryButton(
+                        text = if (vm.busy) "Enviando…" else "Enviar enlace",
+                        loading = vm.busy,
+                        onClick = { vm.requestPasswordReset(email) },
+                    )
                 }
             }
         }
@@ -433,40 +432,178 @@ fun OwnerForgotPasswordScreen(vm: AppViewModel) {
 }
 
 @Composable
-private fun ResetSentCard() {
-    val shape = RoundedCornerShape(18.dp)
+fun OwnerConfirmSentScreen(vm: AppViewModel, email: String) {
+    MailSentScreen(
+        icon = Phosphor.Envelope,
+        title = "Revisa tu bandeja de entrada",
+        description = buildAnnotatedString {
+            append("Enviamos un enlace de confirmación a ")
+            pushStyle(SpanStyle(color = NoduqColors.cyan, fontWeight = FontWeight.SemiBold))
+            append(email)
+            pop()
+            append(". Haz clic en el enlace para activar tu cuenta y comenzar.")
+        },
+        tip = "Si no lo encuentras en unos segundos, revisa tu carpeta de spam o correo no deseado.",
+        primary = "Ir al inicio de sesión",
+        secondary = "¿No lo recibiste? Reenviar correo",
+        error = vm.error,
+        info = vm.info,
+        busy = vm.busy,
+        onBack = { vm.go(Screen.OwnerRegister) },
+        onPrimary = { vm.go(Screen.OwnerLogin) },
+        onSecondary = { vm.resendConfirmEmail(email) },
+    )
+}
+
+@Composable
+fun OwnerResetSentScreen(vm: AppViewModel, email: String) {
+    MailSentScreen(
+        icon = Phosphor.Key,
+        title = "Te enviamos las instrucciones",
+        description = buildAnnotatedString {
+            append("Si el correo está registrado en NODUQ, recibirás un enlace para crear una nueva contraseña en ")
+            pushStyle(SpanStyle(color = NoduqColors.cyan, fontWeight = FontWeight.SemiBold))
+            append(email)
+            pop()
+            append(".")
+        },
+        tip = null,
+        primary = "Volver a iniciar sesión",
+        secondary = "¿No recibiste el enlace? Intentar de nuevo",
+        error = vm.error,
+        info = vm.info,
+        busy = vm.busy,
+        onBack = { vm.go(Screen.OwnerForgotPassword) },
+        onPrimary = { vm.go(Screen.OwnerLogin) },
+        onSecondary = { vm.resendPasswordReset(email) },
+    )
+}
+
+@Composable
+private fun MailSentScreen(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    description: androidx.compose.ui.text.AnnotatedString,
+    tip: String?,
+    primary: String,
+    secondary: String,
+    error: String?,
+    info: String?,
+    busy: Boolean,
+    onBack: () -> Unit,
+    onPrimary: () -> Unit,
+    onSecondary: () -> Unit,
+) {
+    val pulse = rememberInfiniteTransition(label = "mail-sent")
+    val wash by pulse.animateFloat(
+        initialValue = 0.16f,
+        targetValue = 0.32f,
+        animationSpec = infiniteRepeatable(
+            tween(1800, easing = NoduqMotion.easeOut),
+            RepeatMode.Reverse,
+        ),
+        label = "mail-sent-wash",
+    )
     Column(
         Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(NoduqColors.raised)
-            .border(1.dp, NoduqColors.ok.copy(alpha = 0.45f), shape)
-            .padding(horizontal = 20.dp, vertical = 22.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .fillMaxSize()
+            .statusBarsPadding()
+            .navigationBarsPadding(),
     ) {
         Row(
+            Modifier.padding(start = 10.dp, top = 4.dp, end = 22.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Image(
-                imageVector = Phosphor.Check,
-                contentDescription = null,
-                modifier = Modifier.size(22.dp),
-                colorFilter = ColorFilter.tint(NoduqColors.ok),
-            )
+            BackIconButton(onClick = onBack)
+            BrandMark(compact = true)
+        }
+        Column(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 28.dp)
+                .padding(bottom = 28.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                Modifier
+                    .size(64.dp)
+                    .clip(CircleShape)
+                    .background(NoduqColors.cyan.copy(alpha = if (motionEnabled()) wash else 0.16f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = NoduqColors.cyan,
+                    modifier = Modifier.size(28.dp),
+                )
+            }
+            Spacer(Modifier.height(12.dp))
             Text(
-                "¡Correo enviado!",
+                title,
                 color = NoduqColors.ink,
                 fontWeight = FontWeight.SemiBold,
-                fontSize = 18.sp,
+                fontSize = 26.sp,
+                lineHeight = 32.sp,
+                letterSpacing = (-0.4).sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             )
+            Spacer(Modifier.height(12.dp))
+            Text(
+                description,
+                color = NoduqColors.muted,
+                fontSize = 16.sp,
+                lineHeight = 24.sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            )
+            if (tip != null) {
+                Spacer(Modifier.height(20.dp))
+                val tipShape = RoundedCornerShape(16.dp)
+                Text(
+                    tip,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(tipShape)
+                        .background(NoduqColors.raised)
+                        .border(1.dp, NoduqColors.line, tipShape)
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    color = NoduqColors.muted,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+            }
+            error?.let {
+                Spacer(Modifier.height(16.dp))
+                Banner(it)
+            }
+            info?.let {
+                Spacer(Modifier.height(16.dp))
+                Banner(it, tone = "ok")
+            }
+            Spacer(Modifier.height(28.dp))
+            PrimaryButton(text = primary, onClick = onPrimary, enabled = !busy)
+            Spacer(Modifier.height(8.dp))
+            androidx.compose.material3.TextButton(
+                onClick = onSecondary,
+                enabled = !busy,
+                modifier = Modifier.heightIn(min = 48.dp),
+                colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                    contentColor = NoduqColors.muted,
+                ),
+            ) {
+                Text(
+                    if (busy) "Enviando…" else secondary,
+                    color = NoduqColors.muted,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 15.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+            }
         }
-        Text(
-            "Revisa tu bandeja de entrada y sigue las instrucciones.",
-            color = NoduqColors.muted,
-            fontSize = 16.sp,
-            lineHeight = 24.sp,
-        )
     }
 }
 

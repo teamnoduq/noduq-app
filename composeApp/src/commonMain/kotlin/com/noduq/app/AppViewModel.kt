@@ -20,6 +20,8 @@ sealed interface Screen {
     data object OwnerPlan : Screen
     data object OwnerPermissions : Screen
     data object OwnerForgotPassword : Screen
+    data class OwnerConfirmSent(val email: String) : Screen
+    data class OwnerResetSent(val email: String) : Screen
     data class OwnerOnboard(val step: Int) : Screen
     data class OwnerHome(val tab: OwnerTab = OwnerTab.Pagos) : Screen
     data object EmployeeLogin : Screen
@@ -98,12 +100,39 @@ class AppViewModel(
     }
 
     private var booted = false
+    private var emailAuthApplied = false
 
     fun start() {
         readPermissions()
         if (booted) return
         booted = true
         viewModelScope.launch { restore() }
+    }
+
+    private fun applyEmailAuth(payload: EmailAuthPayload) {
+        emailAuthApplied = true
+        viewModelScope.launch {
+            error = null
+            if (payload.type.equals("recovery", ignoreCase = true) && payload.accessToken.isNullOrBlank()) {
+                if (tokens.ownerAccessToken().isNullOrBlank()) {
+                    screen = Screen.OwnerLogin
+                    info = "Clave lista. Entra con la nueva."
+                }
+                return@launch
+            }
+            val access = payload.accessToken ?: return@launch
+            busy = true
+            try {
+                tokens.saveOwner(access, payload.refreshToken, payload.email)
+                ownerEmail = payload.email
+                loadOwnerWorkspace(access)
+            } catch (cause: Exception) {
+                error = cause.message ?: "No se pudo abrir la sesión del correo."
+                if (screen == Screen.Boot) screen = Screen.OwnerLogin
+            } finally {
+                busy = false
+            }
+        }
     }
 
     fun readPermissions() {
@@ -135,6 +164,10 @@ class AppViewModel(
 
     /** The shopkeeper may have granted a permission in system settings while we were away. */
     fun onForeground() {
+        takeEmailAuthPayload()?.let { payload ->
+            applyEmailAuth(payload)
+            return
+        }
         val smsWas = smsAllowed
         readPermissions()
         if (readsBankSms || !needsNotificationSetup()) {
@@ -265,7 +298,9 @@ class AppViewModel(
     fun back() {
         when (val now = screen) {
             Screen.OwnerRegister -> go(Screen.OwnerLogin)
+            is Screen.OwnerConfirmSent -> go(Screen.OwnerRegister)
             Screen.OwnerForgotPassword -> go(Screen.OwnerLogin)
+            is Screen.OwnerResetSent -> go(Screen.OwnerForgotPassword)
             Screen.OwnerLogin, Screen.EmployeeLogin -> go(Screen.RoleGate)
             is Screen.OwnerOnboard -> onboardBack()
             else -> Unit
@@ -309,10 +344,10 @@ class AppViewModel(
             password.none { it.isDigit() } -> error = "Incluye al menos un número."
             password != confirm -> error = "Las contraseñas no coinciden."
             else -> launchWork("Creando…") {
-                val session = supabase.signUp(mail, password)
+                val session = supabase.signUp(mail, password, AuthLinks.CONFIRM)
                 val access = session.accessToken
                 if (access.isNullOrBlank()) {
-                    info = "Revisa tu correo para confirmar la cuenta. Luego vuelve a entrar."
+                    screen = Screen.OwnerConfirmSent(mail)
                     return@launchWork
                 }
                 tokens.saveOwner(access, session.refreshToken, session.user?.email ?: mail)
@@ -582,8 +617,26 @@ class AppViewModel(
             return
         }
         launchWork {
-            supabase.recoverPassword(mail, "https://noduq.app/recuperar")
-            info = "sent"
+            supabase.recoverPassword(mail, AuthLinks.RECOVER)
+            screen = Screen.OwnerResetSent(mail)
+        }
+    }
+
+    fun resendConfirmEmail(email: String) {
+        val mail = email.trim()
+        if (mail.isBlank()) return
+        launchWork {
+            supabase.resendSignup(mail, AuthLinks.CONFIRM)
+            info = "Te lo volvimos a enviar."
+        }
+    }
+
+    fun resendPasswordReset(email: String) {
+        val mail = email.trim()
+        if (mail.isBlank()) return
+        launchWork {
+            supabase.recoverPassword(mail, AuthLinks.RECOVER)
+            info = "Te lo volvimos a enviar."
         }
     }
 
@@ -723,6 +776,11 @@ class AppViewModel(
 
     private suspend fun restore() {
         screen = Screen.Boot
+        takeEmailAuthPayload()?.let { payload ->
+            applyEmailAuth(payload)
+            return
+        }
+        if (emailAuthApplied) return
         val owner = tokens.ownerAccessToken()
         val employee = tokens.employeeToken()
         try {

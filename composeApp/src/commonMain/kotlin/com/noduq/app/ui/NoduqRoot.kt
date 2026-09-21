@@ -50,6 +50,8 @@ fun NoduqRoot(vm: AppViewModel) {
                 Screen.OwnerPlan -> OwnerPlanScreen(vm)
                 Screen.OwnerPermissions -> OwnerPermissionsScreen(vm)
                 Screen.OwnerForgotPassword -> OwnerForgotPasswordScreen(vm)
+                is Screen.OwnerConfirmSent -> OwnerConfirmSentScreen(vm, screen.email)
+                is Screen.OwnerResetSent -> OwnerResetSentScreen(vm, screen.email)
                 is Screen.OwnerOnboard -> OwnerOnboardScreen(vm, screen.step)
                 is Screen.OwnerHome -> OwnerShell(vm, screen.tab)
                 Screen.EmployeeLogin -> EmployeeLoginScreen(vm)
@@ -58,7 +60,9 @@ fun NoduqRoot(vm: AppViewModel) {
         }
         val canBack = vm.screen is Screen.OwnerLogin ||
             vm.screen is Screen.OwnerRegister ||
+            vm.screen is Screen.OwnerConfirmSent ||
             vm.screen is Screen.OwnerForgotPassword ||
+            vm.screen is Screen.OwnerResetSent ||
             vm.screen is Screen.EmployeeLogin ||
             (vm.screen is Screen.OwnerOnboard && (vm.screen as Screen.OwnerOnboard).step < 6)
         BackNavigation(enabled = canBack) { vm.back() }
@@ -89,6 +93,7 @@ private fun Screen.depth(): Int = when (this) {
     Screen.RoleGate -> 1
     Screen.OwnerLogin, Screen.EmployeeLogin -> 2
     Screen.OwnerRegister, Screen.OwnerForgotPassword -> 3
+    is Screen.OwnerConfirmSent, is Screen.OwnerResetSent -> 4
     Screen.OwnerSetup -> 4
     is Screen.OwnerOnboard -> 4 + step
     Screen.OwnerPlan -> 12
