@@ -177,7 +177,12 @@ class AppViewModel(
             viewModelScope.launch { runCatching { AppGraph.bankSms.flushPending() } }
         }
         if (screen is Screen.OwnerPermissions || screen is Screen.OwnerPlan) {
-            workspace?.let { screen = ownerDestination() }
+            val onboard = tokens.onboardingStep()
+            screen = when {
+                workspace != null -> Screen.OwnerHome()
+                onboard != null -> Screen.OwnerOnboard(onboard.coerceIn(0, 6))
+                else -> ownerDestination()
+            }
             if (screen is Screen.OwnerHome) onSessionReady()
         }
         refreshGmailAndAdvanceOnboard()
@@ -603,11 +608,7 @@ class AppViewModel(
 
     private fun ownerDestination(): Screen {
         val shop = workspace
-        return when {
-            shop == null -> Screen.OwnerSetup
-            needsPermissionSetup(askSms = true) -> Screen.OwnerPermissions
-            else -> Screen.OwnerHome()
-        }
+        return if (shop == null) Screen.OwnerSetup else Screen.OwnerHome()
     }
 
     fun requestPasswordReset(email: String) {
