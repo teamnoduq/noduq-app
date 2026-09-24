@@ -582,7 +582,14 @@ class AppViewModel(
         val token = requireOwnerToken() ?: return
         launchWork {
             withTimeoutOrNull(2_000) { runCatching { forgetThisDevice() } }
-            api.deleteMe(token, confirmation.trim())
+            try {
+                api.deleteMe(token, confirmation.trim())
+            } catch (cause: ApiException) {
+                val gone = cause.code == "AUTH_DELETE_FAILED"
+                    || cause.code == "NOT_PROVISIONED"
+                    || cause.status == 404
+                if (!gone) throw cause
+            }
             runCatching { supabase.signOut(token) }
             tokens.clear()
             resetGuest()
