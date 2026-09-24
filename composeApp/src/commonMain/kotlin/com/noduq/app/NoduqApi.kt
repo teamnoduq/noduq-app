@@ -146,11 +146,7 @@ class NoduqApi(
                 else -> error("Método no soportado")
             }
         } catch (cause: Exception) {
-            throw ApiException(
-                0,
-                "NETWORK",
-                "El servidor no responde. ¿Está el API de NODUQ en ${config.apiBaseUrl}?",
-            )
+            throw ApiException(0, "NETWORK", "No hay conexión. Inténtalo de nuevo.")
         }
         return parse(response, empty)
     }

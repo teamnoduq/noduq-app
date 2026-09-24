@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 enum class OwnerTab { Pagos, Empleados, Cuenta }
 
@@ -580,12 +581,11 @@ class AppViewModel(
         }
         val token = requireOwnerToken() ?: return
         launchWork {
-            runCatching { forgetThisDevice() }
-            api.deleteMe(token, confirmation)
+            withTimeoutOrNull(2_000) { runCatching { forgetThisDevice() } }
+            api.deleteMe(token, confirmation.trim())
             runCatching { supabase.signOut(token) }
             tokens.clear()
             resetGuest()
-            info = "La cuenta se borró."
         }
     }
 
@@ -943,6 +943,9 @@ class AppViewModel(
         payUntil = null
         payRange = "todos"
         gmail = null
+        error = null
+        info = null
+        busy = false
         clearOnboardDrafts()
         screen = Screen.RoleGate
     }
