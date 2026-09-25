@@ -75,7 +75,6 @@ import com.noduq.app.Screen
 import com.noduq.app.longDateLabel
 import com.noduq.app.motionEnabled
 import com.noduq.app.needsAttention
-import com.noduq.app.planActive
 import com.noduq.app.planCancelling
 import com.noduq.app.planRenewing
 import com.noduq.app.theme.NoduqColors
@@ -711,7 +710,6 @@ fun AccountScreen(vm: AppViewModel) {
 
     val dirty = displayName.trim() != vm.workspace?.profile?.displayName.orEmpty() ||
         orgName.trim() != vm.workspace?.organization?.name.orEmpty()
-    val planOn = vm.workspace?.planActive() == true
     val planRenewing = vm.workspace?.planRenewing() == true
     val planCancelling = vm.workspace?.planCancelling() == true
     val periodEnd = longDateLabel(vm.workspace?.plan?.periodEndsAt).ifBlank { "el final del periodo" }
@@ -884,31 +882,11 @@ fun AccountScreen(vm: AppViewModel) {
                 fontSize = 18.sp,
             )
             Text(
-                "Esta acción es permanente e irreversible. Perderás la configuración de tu local, tu historial y la conexión con tus empleados.",
+                "Esta acción es permanente e irreversible. Perderás la configuración de tu local, tu historial y la conexión con tus empleados. Si el plan se cobra en Play, la renovación se cancela al borrar la cuenta.",
                 color = NoduqColors.muted,
                 fontSize = 15.sp,
                 lineHeight = 22.sp,
             )
-            if (planOn) {
-                Text(
-                    "Atención: Borrar la cuenta no cancela tu cobro recurrente. Cancela tu suscripción en Google Play Store para evitar cargos.",
-                    color = Color(0xFFFDE68A),
-                    fontSize = 12.sp,
-                    lineHeight = 18.sp,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0x33422006))
-                        .border(1.dp, Color(0x66B45309), RoundedCornerShape(12.dp))
-                        .padding(12.dp),
-                )
-                GhostButton(
-                    "Gestionar suscripción en Play Store",
-                    color = NoduqColors.cyan,
-                    enabled = !vm.busy,
-                    onClick = { AppGraph.links.open(PLAY_SUBSCRIPTIONS) },
-                )
-            }
             Text(
                 "Para confirmar, escribe el nombre de tu negocio ($businessName):",
                 color = Color(0xFF9CA3AF),
@@ -1070,9 +1048,6 @@ private fun NoduqSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.(
         )
     }
 }
-
-private const val PLAY_SUBSCRIPTIONS =
-    "https://play.google.com/store/account/subscriptions?package=com.noduq.app"
 
 @Composable
 private fun AccountCard(

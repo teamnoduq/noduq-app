@@ -85,6 +85,12 @@ class AppViewModel(
     var gmail by mutableStateOf<GmailStatusDto?>(null)
         private set
 
+    /** Soft prompts on Pagos. "Por ahora" lasts this session, not forever. */
+    var notificationPromptDismissed by mutableStateOf(false)
+        private set
+    var mailPromptDismissed by mutableStateOf(false)
+        private set
+
     val apiBaseUrl: String get() = AppGraph.config.apiBaseUrl
 
     val readsBankSms: Boolean get() = smsAllowed == PermissionState.Granted
@@ -92,6 +98,14 @@ class AppViewModel(
     fun needsSmsSetup(): Boolean = smsAllowed.needsAttention()
 
     fun needsNotificationSetup(): Boolean = notificationsAllowed.needsAttention()
+
+    fun dismissNotificationPrompt() {
+        notificationPromptDismissed = true
+    }
+
+    fun dismissMailPrompt() {
+        mailPromptDismissed = true
+    }
 
     fun needsPermissionSetup(askSms: Boolean): Boolean =
         needsNotificationSetup() || (askSms && needsSmsSetup())
@@ -990,6 +1004,8 @@ class AppViewModel(
         payUntil = null
         payRange = "todos"
         gmail = null
+        notificationPromptDismissed = false
+        mailPromptDismissed = false
         error = null
         info = null
         busy = false

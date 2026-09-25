@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -38,6 +39,7 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -55,9 +57,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.noduq.app.OwnerTab
@@ -83,7 +87,10 @@ import com.noduq.app.whoPaid
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PaymentsScreen(vm: AppViewModel) {
-    LaunchedEffect(Unit) { vm.loadPayments() }
+    LaunchedEffect(Unit) {
+        vm.loadPayments()
+        vm.loadGmail()
+    }
 
     var sheetOpen by rememberSaveable { mutableStateOf(false) }
     var picking by rememberSaveable { mutableStateOf<String?>(null) }
@@ -164,15 +171,15 @@ fun PaymentsScreen(vm: AppViewModel) {
                     }
                 },
             )
-            if (vm.needsPermissionSetup(askSms = true)) {
-                Spacer(Modifier.height(12.dp))
-                PermissionCard(
-                    askSms = true,
-                    notifications = vm.notificationsAllowed,
-                    sms = vm.smsAllowed,
-                    onAskNotifications = vm::askNotifications,
-                    onAskSms = vm::askSms,
-                    onOpenSettings = vm::openSystemSettings,
+            val showNotificationBanner = vm.needsNotificationSetup() && !vm.notificationPromptDismissed
+            if (showNotificationBanner) {
+                Spacer(Modifier.height(16.dp))
+                NotificationListenBanner(
+                    onActivate = {
+                        if (vm.notificationsAllowed == PermissionState.Blocked) vm.openSystemSettings()
+                        else vm.askNotifications()
+                    },
+                    onDismiss = vm::dismissNotificationPrompt,
                 )
             }
             vm.noticesError?.let { message ->
@@ -180,7 +187,7 @@ fun PaymentsScreen(vm: AppViewModel) {
                 Banner(message)
                 QuietButton("Reintentar") { vm.loadPayments() }
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(if (showNotificationBanner) 16.dp else 8.dp))
         }
         val slidePx = with(LocalDensity.current) { 8.dp.roundToPx() }
         val feedKey = when {
@@ -212,13 +219,25 @@ fun PaymentsScreen(vm: AppViewModel) {
                     Modifier.fillMaxSize().padding(horizontal = 32.dp),
                     contentAlignment = Alignment.Center,
                 ) {
+                    val gmail = vm.gmail
                     EmptyPayments(
                         todayish = vm.payRange == "todos" || vm.payRange == "hoy",
                         planActive = vm.workspace?.planActive() == true,
-                        onActivate = {
+                        smsReady = !vm.needsSmsSetup(),
+                        offerMail = gmail != null &&
+                            gmail.configured &&
+                            !gmail.connected &&
+                            !vm.mailPromptDismissed,
+                        onActivatePlan = {
                             vm.go(Screen.OwnerHome(OwnerTab.Cuenta))
                             vm.buyPlan()
                         },
+                        onGrantSms = {
+                            if (vm.smsAllowed == PermissionState.Blocked) vm.openSystemSettings()
+                            else vm.askSms()
+                        },
+                        onConnectMail = vm::connectGmail,
+                        onSkipMail = vm::dismissMailPrompt,
                     )
                 }
                 else -> LazyColumn(
@@ -354,7 +373,7 @@ fun PermissionCard(
         )
         Text(
             if (askSms) {
-                "Sin el permiso de mensajes, el comprobante de Bancolombia no entra. Las notificaciones hacen sonar el mostrador aunque la app esté cerrada."
+                "Sin el permiso de mensajes, el comprobante de tu banco no entra. Las notificaciones hacen sonar el mostrador aunque la app esté cerrada."
             } else {
                 "Las notificaciones avisan cuando el banco confirma el QR, aunque estés fuera de esta pantalla."
             },
@@ -373,8 +392,8 @@ fun PermissionCard(
         }
         if (askSms && sms.needsRow()) {
             PermissionRow(
-                title = "Leer los comprobantes de Bancolombia",
-                detail = "Solo esos mensajes. El resto de la bandeja no se toca.",
+                title = "Leer los comprobantes de tu banco",
+                detail = "Solo esos avisos bancarios. El resto de la bandeja no se toca.",
                 state = sms,
                 onAsk = onAskSms,
                 onOpenSettings = onOpenSettings,
@@ -461,49 +480,151 @@ private fun PaymentSkeletonCard() {
 }
 
 @Composable
-private fun EmptyPayments(todayish: Boolean, planActive: Boolean, onActivate: () -> Unit) {
-    if (!planActive) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+private fun NotificationListenBanner(onActivate: () -> Unit, onDismiss: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFF0F171A))
+            .border(1.dp, NoduqColors.cyan.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+            .padding(start = 12.dp, top = 4.dp, bottom = 4.dp, end = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            "Activa las notificaciones para escuchar cuando llegue un pago en el mostrador.",
+            color = NoduqColors.ink,
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
+            modifier = Modifier.weight(1f).padding(vertical = 8.dp),
+        )
+        TextButton(
+            onClick = onActivate,
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
         ) {
-            Box(
-                Modifier
-                    .size(64.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF0F171A))
-                    .border(1.dp, NoduqColors.line, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    Phosphor.Receipt,
-                    contentDescription = null,
-                    tint = NoduqColors.muted,
-                    modifier = Modifier.size(28.dp),
-                )
-            }
             Text(
-                "Validación automática inactiva",
-                color = Color.White,
+                "Activar",
+                color = NoduqColors.cyan,
                 fontWeight = FontWeight.SemiBold,
-                fontSize = 20.sp,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            )
-            Text(
-                "Activa tu plan para que NODUQ valide los pagos por QR y notifique a tu equipo en tiempo real.",
-                color = NoduqColors.muted,
-                fontSize = 15.sp,
-                lineHeight = 22.sp,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            )
-            Spacer(Modifier.height(4.dp))
-            PrimaryButton(
-                "Activar plan · $24.900/mes",
-                onClick = onActivate,
+                fontSize = 14.sp,
             )
         }
-        return
+        IconButton(onClick = onDismiss, modifier = Modifier.size(40.dp)) {
+            Icon(
+                Phosphor.X,
+                contentDescription = "Ahora no",
+                tint = NoduqColors.muted,
+                modifier = Modifier.size(16.dp),
+            )
+        }
     }
+}
+
+@Composable
+private fun EmptyPayments(
+    todayish: Boolean,
+    planActive: Boolean,
+    smsReady: Boolean,
+    offerMail: Boolean,
+    onActivatePlan: () -> Unit,
+    onGrantSms: () -> Unit,
+    onConnectMail: () -> Unit,
+    onSkipMail: () -> Unit,
+) {
+    when {
+        planActive && !smsReady -> PaymentsEmptyCluster(
+            icon = Phosphor.WarningCircle,
+            iconTint = NoduqColors.cyan,
+            title = "Permiso de lectura requerido",
+            body = "Tu plan está activo, pero NODUQ necesita permiso para leer los avisos de tu banco y registrar los cobros.",
+            action = "Conceder permiso",
+            onAction = onGrantSms,
+        )
+        planActive && offerMail -> PaymentsEmptyCluster(
+            icon = Phosphor.Envelope,
+            iconTint = NoduqColors.cyan,
+            title = "Para confirmar los del SMS",
+            body = "Conecta el correo y NODUQ confirma por ahí los pagos que ya llegaron como aviso de tu banco.",
+            action = "Conectar correo",
+            onAction = onConnectMail,
+            skip = "Omitir por ahora",
+            onSkip = onSkipMail,
+        )
+        !planActive -> PaymentsEmptyCluster(
+            icon = Phosphor.Receipt,
+            iconTint = NoduqColors.muted,
+            title = "Validación automática inactiva",
+            body = if (!smsReady) {
+                "Activa tu plan y conecta tus permisos para validar los pagos por QR al instante."
+            } else {
+                "Activa tu plan para validar los pagos por QR al instante."
+            },
+            action = "Activar plan · $24.900/mes",
+            onAction = onActivatePlan,
+        )
+        else -> QuietEmptyPayments(todayish = todayish)
+    }
+}
+
+@Composable
+private fun PaymentsEmptyCluster(
+    icon: ImageVector,
+    iconTint: Color,
+    title: String,
+    body: String,
+    action: String,
+    onAction: () -> Unit,
+    skip: String? = null,
+    onSkip: (() -> Unit)? = null,
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(
+            Modifier
+                .size(64.dp)
+                .clip(CircleShape)
+                .background(Color(0xFF0F171A))
+                .border(1.dp, NoduqColors.line, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(28.dp))
+        }
+        Text(
+            title,
+            color = Color.White,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 20.sp,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            body,
+            color = NoduqColors.muted,
+            fontSize = 15.sp,
+            lineHeight = 22.sp,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(4.dp))
+        PrimaryButton(action, onClick = onAction)
+        if (skip != null && onSkip != null) {
+            TextButton(
+                onClick = onSkip,
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+            ) {
+                Text(
+                    skip,
+                    color = NoduqColors.muted,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 14.sp,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuietEmptyPayments(todayish: Boolean) {
     val pulse = rememberInfiniteTransition(label = "empty")
     val wash by pulse.animateFloat(
         initialValue = 0.16f,
@@ -528,7 +649,7 @@ private fun EmptyPayments(todayish: Boolean, planActive: Boolean, onActivate: ()
             Icon(
                 Phosphor.Receipt,
                 contentDescription = null,
-                tint = NoduqColors.cyan,
+                tint = NoduqColors.cyan.copy(alpha = 0.72f),
                 modifier = Modifier.size(28.dp),
             )
         }
@@ -537,14 +658,14 @@ private fun EmptyPayments(todayish: Boolean, planActive: Boolean, onActivate: ()
             color = Color.White,
             fontWeight = FontWeight.SemiBold,
             fontSize = 20.sp,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            textAlign = TextAlign.Center,
         )
         Text(
             "Los pagos confirmados aparecerán aquí automáticamente.",
             color = NoduqColors.muted,
             fontSize = 15.sp,
             lineHeight = 22.sp,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            textAlign = TextAlign.Center,
         )
     }
 }
