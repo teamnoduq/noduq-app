@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.remember
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.delay
 import androidx.compose.material3.AlertDialog
@@ -690,7 +691,6 @@ fun AccountScreen(vm: AppViewModel) {
     var orgName by rememberSaveable { mutableStateOf(vm.workspace?.organization?.name.orEmpty()) }
     var deleteOpen by rememberSaveable { mutableStateOf(false) }
     var cancelPlanOpen by rememberSaveable { mutableStateOf(false) }
-    var confirmation by rememberSaveable { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
         vm.readPermissions()
@@ -703,6 +703,10 @@ fun AccountScreen(vm: AppViewModel) {
 
     val dirty = displayName.trim() != vm.workspace?.profile?.displayName.orEmpty() ||
         orgName.trim() != vm.workspace?.organization?.name.orEmpty()
+    val planOn = vm.workspace?.planActive() == true
+    val planRenewing = vm.workspace?.planRenewing() == true
+    val planCancelling = vm.workspace?.planCancelling() == true
+    val periodEnd = longDateLabel(vm.workspace?.plan?.periodEndsAt).ifBlank { "el final del periodo" }
 
     Column(
         Modifier
@@ -735,10 +739,6 @@ fun AccountScreen(vm: AppViewModel) {
             }
         }
 
-        val planOn = vm.workspace?.planActive() == true
-        val planRenewing = vm.workspace?.planRenewing() == true
-        val planCancelling = vm.workspace?.planCancelling() == true
-        val periodEnd = longDateLabel(vm.workspace?.plan?.periodEndsAt).ifBlank { "el final del periodo" }
         if (planCancelling) {
             AccountCard(
                 "Suscripción cancelada",
@@ -752,8 +752,8 @@ fun AccountScreen(vm: AppViewModel) {
             }
         } else {
             AccountCard(
-                "Plan",
-                if (planOn) "Activo. NODUQ valida y avisa los pagos." else "Sin plan, NODUQ no valida ni avisa los pagos.",
+                if (planRenewing) "Plan" else "Plan Pro NODUQ",
+                if (planRenewing) "Activo. NODUQ valida y avisa los pagos." else null,
             ) {
                 if (planRenewing) {
                     Text(
@@ -770,12 +770,14 @@ fun AccountScreen(vm: AppViewModel) {
                     ) {
                         Text(
                             "Cancelar suscripción",
-                            color = NoduqColors.muted,
+                            color = Color(0xFFF87171),
                             fontWeight = FontWeight.Medium,
                             fontSize = 14.sp,
                         )
                     }
                 } else {
+                    PlanBenefit("Validaciones automáticas e ilimitadas por SMS y Correo.")
+                    PlanBenefit("Notificaciones instantáneas para tu equipo en el mostrador.")
                     PrimaryButton(
                         if (vm.busy) "Activando…" else "Activar plan · $24.900/mes",
                         loading = vm.busy,
@@ -845,102 +847,142 @@ fun AccountScreen(vm: AppViewModel) {
         Spacer(Modifier.height(8.dp))
         AccountCard("Sesión y cuenta") {
             GhostButton("Cerrar sesión", onClick = { vm.ownerSignOut() })
-            Text(
-                "Borrar cuenta",
-                color = NoduqColors.danger,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 15.sp,
-            )
-            GhostButton("Borrar cuenta", onClick = { deleteOpen = true }, danger = true)
+            TextButton(
+                onClick = { deleteOpen = true },
+                enabled = !vm.busy,
+                modifier = Modifier.heightIn(min = 44.dp),
+                contentPadding = PaddingValues(horizontal = 0.dp, vertical = 8.dp),
+            ) {
+                Text(
+                    "Eliminar cuenta",
+                    color = Color(0xFFF87171),
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 14.sp,
+                )
+            }
         }
     }
 
     if (deleteOpen) {
-        AlertDialog(
-            onDismissRequest = { deleteOpen = false },
-            properties = DialogProperties(dismissOnClickOutside = false),
-            containerColor = NoduqColors.raised,
-            titleContentColor = NoduqColors.ink,
-            textContentColor = NoduqColors.ink,
-            title = { Text("Borrar la cuenta") },
-            text = {
-                val org = vm.workspace?.organization?.name.orEmpty()
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        "Se borra $org, los empleados y el acceso. Para confirmar, escribe el nombre exacto del negocio. Esto no se puede deshacer.",
-                        color = NoduqColors.muted,
-                        fontSize = 15.sp,
-                        lineHeight = 22.sp,
-                    )
-                    NoduqField(
-                        confirmation,
-                        { confirmation = it },
-                        "Nombre del negocio",
-                        imeAction = ImeAction.Done,
-                        enabled = !vm.busy,
-                    )
-                }
-            },
-            confirmButton = {
+        NoduqSheet(onDismiss = { if (!vm.busy) deleteOpen = false }) {
+            Text(
+                "¿Eliminar cuenta de NODUQ?",
+                color = Color.White,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 18.sp,
+            )
+            Text(
+                "Esta acción es irreversible. Se borrarán tus datos, la configuración de tu negocio y la conexión con tus empleados de forma permanente.",
+                color = NoduqColors.muted,
+                fontSize = 15.sp,
+                lineHeight = 22.sp,
+            )
+            if (planOn) {
+                Text(
+                    "Atención: Borrar tu cuenta de NODUQ no cancela automáticamente tu cobro recurrente. Para evitar futuros cobros, debes gestionar tu suscripción desde Google Play Store.",
+                    color = Color(0xFFFDE68A),
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0x33422006))
+                        .border(1.dp, Color(0x66B45309), RoundedCornerShape(12.dp))
+                        .padding(12.dp),
+                )
                 GhostButton(
-                    if (vm.busy) "Borrando…" else "Borrar para siempre",
-                    onClick = { vm.deleteAccount(confirmation) },
+                    "Gestionar suscripción en Play Store",
+                    color = NoduqColors.cyan,
+                    enabled = !vm.busy,
+                    onClick = { AppGraph.links.open(PLAY_SUBSCRIPTIONS) },
+                )
+                GhostButton(
+                    if (vm.busy) "Eliminando…" else "Entendido, eliminar mi cuenta de todos modos",
                     danger = true,
                     enabled = !vm.busy,
+                    onClick = { vm.deleteAccount() },
                 )
-            },
-            dismissButton = {
-                QuietButton("Cancelar") {
-                    deleteOpen = false
-                    confirmation = ""
-                }
-            },
-        )
+            } else {
+                GhostButton(
+                    if (vm.busy) "Eliminando…" else "Sí, eliminar mi cuenta",
+                    danger = true,
+                    enabled = !vm.busy,
+                    onClick = { vm.deleteAccount() },
+                )
+            }
+            QuietButton("Cancelar", enabled = !vm.busy) { deleteOpen = false }
+        }
     }
 
     if (cancelPlanOpen) {
-        AlertDialog(
-            onDismissRequest = { if (!vm.busy) cancelPlanOpen = false },
-            properties = DialogProperties(dismissOnClickOutside = !vm.busy),
-            containerColor = Color(0xFF0F171A),
-            shape = RoundedCornerShape(16.dp),
-            titleContentColor = Color.White,
-            textContentColor = NoduqColors.muted,
-            title = { Text("¿Deseas cancelar tu suscripción?") },
-            text = {
+        NoduqSheet(onDismiss = { if (!vm.busy) cancelPlanOpen = false }) {
+            Text(
+                "¿Deseas cancelar tu suscripción?",
+                color = Color.White,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 18.sp,
+            )
+            Text(
+                "Tus empleados dejarán de recibir la confirmación de pagos en el mostrador al finalizar el periodo actual.",
+                color = NoduqColors.muted,
+                fontSize = 15.sp,
+                lineHeight = 22.sp,
+            )
+            PrimaryButton(
+                "Mantener mi plan",
+                onClick = { cancelPlanOpen = false },
+                enabled = !vm.busy,
+            )
+            TextButton(
+                onClick = {
+                    vm.cancelPlan()
+                    cancelPlanOpen = false
+                },
+                enabled = !vm.busy,
+            ) {
                 Text(
-                    "Tus empleados dejarán de recibir la confirmación de pagos en el mostrador al finalizar el periodo actual.",
-                    color = NoduqColors.muted,
+                    "Sí, cancelar plan",
+                    color = Color(0xFFF87171),
+                    fontWeight = FontWeight.Medium,
                     fontSize = 15.sp,
-                    lineHeight = 22.sp,
                 )
-            },
-            confirmButton = {
-                PrimaryButton(
-                    "Mantener mi plan",
-                    onClick = { cancelPlanOpen = false },
-                    enabled = !vm.busy,
-                )
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        vm.cancelPlan()
-                        cancelPlanOpen = false
-                    },
-                    enabled = !vm.busy,
-                ) {
-                    Text(
-                        "Sí, cancelar plan",
-                        color = Color(0xFFF87171),
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 15.sp,
-                    )
-                }
-            },
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlanBenefit(text: String) {
+    Text(
+        "• $text",
+        color = Color(0xFFD1D5DB),
+        fontSize = 12.sp,
+        lineHeight = 18.sp,
+    )
+}
+
+@Composable
+private fun NoduqSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 22.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color(0xFF0F171A))
+                .border(1.dp, NoduqColors.line, RoundedCornerShape(16.dp))
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            content = content,
         )
     }
 }
+
+private const val PLAY_SUBSCRIPTIONS =
+    "https://play.google.com/store/account/subscriptions?package=com.noduq.app"
 
 @Composable
 private fun AccountCard(

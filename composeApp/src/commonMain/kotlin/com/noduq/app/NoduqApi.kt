@@ -37,8 +37,8 @@ class NoduqApi(
     suspend fun patchMe(token: String, body: PatchNameRequest): ProfileDto =
         request("PATCH", "/v1/me", token, body)
 
-    suspend fun deleteMe(token: String, confirmation: String) {
-        request<Unit>("DELETE", "/v1/me", token, DeleteAccountRequest(confirmation), empty = true)
+    suspend fun deleteMe(token: String) {
+        request<Unit>("DELETE", "/v1/me", token, empty = true)
     }
 
     suspend fun getOrganization(token: String): OrganizationDto =

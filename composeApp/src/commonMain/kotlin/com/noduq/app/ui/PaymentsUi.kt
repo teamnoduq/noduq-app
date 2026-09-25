@@ -471,11 +471,12 @@ private fun EmptyPayments(todayish: Boolean, planActive: Boolean, onActivate: ()
                 Modifier
                     .size(64.dp)
                     .clip(CircleShape)
-                    .background(NoduqColors.ink.copy(alpha = 0.08f)),
+                    .background(Color(0xFF0F171A))
+                    .border(1.dp, NoduqColors.line, CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    Phosphor.ShieldWarning,
+                    Phosphor.Receipt,
                     contentDescription = null,
                     tint = NoduqColors.muted,
                     modifier = Modifier.size(28.dp),

@@ -177,9 +177,6 @@ data class PatchNameRequest(val displayName: String)
 data class PatchOrganizationRequest(val name: String)
 
 @Serializable
-data class DeleteAccountRequest(val confirmation: String)
-
-@Serializable
 data class CreateEmployeeRequest(
     val displayName: String,
     val username: String? = null,

@@ -171,8 +171,8 @@ fun GhostButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     danger: Boolean = false,
+    color: Color = if (danger) NoduqColors.danger else NoduqColors.ink,
 ) {
-    val color = if (danger) NoduqColors.danger else NoduqColors.ink
     Button(
         onClick = onClick,
         enabled = enabled,

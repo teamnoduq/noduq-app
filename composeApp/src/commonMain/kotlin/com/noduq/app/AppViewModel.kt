@@ -576,16 +576,12 @@ class AppViewModel(
         }
     }
 
-    fun deleteAccount(confirmation: String) {
-        if (confirmation.isBlank()) {
-            error = "Escribe el nombre de la organización para confirmar."
-            return
-        }
+    fun deleteAccount() {
         val token = requireOwnerToken() ?: return
         launchWork {
             withTimeoutOrNull(2_000) { runCatching { forgetThisDevice() } }
             try {
-                api.deleteMe(token, confirmation.trim())
+                api.deleteMe(token)
             } catch (cause: ApiException) {
                 val gone = cause.code == "AUTH_DELETE_FAILED"
                     || cause.code == "NOT_PROVISIONED"
