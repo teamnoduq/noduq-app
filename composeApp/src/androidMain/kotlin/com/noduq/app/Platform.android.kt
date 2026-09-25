@@ -81,6 +81,8 @@ class AndroidLinkOpener(private val context: Context) : LinkOpener {
 
 actual fun isoInstant(millis: Long): String = Instant.ofEpochMilli(millis).toString()
 
+actual fun epochMillis(iso: String?): Long = readInstant(iso)?.toEpochMilli() ?: -1L
+
 actual fun clockLabel(iso: String?): String {
     val moment = readInstant(iso) ?: return ""
     return CLOCK.format(moment.atZone(ZoneId.systemDefault()))

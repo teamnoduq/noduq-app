@@ -85,6 +85,13 @@ class AppViewModel(
     var gmail by mutableStateOf<GmailStatusDto?>(null)
         private set
 
+    /** One backfill per shop. Null until the server answers; `missing` when this API does not have it yet. */
+    var paymentHistory by mutableStateOf<HistoryStatusDto?>(null)
+        private set
+    var historyNote by mutableStateOf<String?>(null)
+        private set
+    private var historyJob: Job? = null
+
     /** Soft prompts on Pagos. "Por ahora" lasts this session, not forever. */
     var notificationPromptDismissed by mutableStateOf(false)
         private set
@@ -105,6 +112,80 @@ class AppViewModel(
 
     fun dismissMailPrompt() {
         mailPromptDismissed = true
+    }
+
+    fun loadPaymentHistory() {
+        if (tokens.ownerAccessToken() == null) return
+        if (historyJob?.isActive == true) return
+        viewModelScope.launch {
+            try {
+                val status = asOwner { api.paymentHistory(it) }
+                paymentHistory = status
+                if (status.status == "running") pumpHistory(startFresh = false)
+            } catch (cause: ApiException) {
+                if (cause.status == 404) paymentHistory = HistoryStatusDto(status = "missing")
+            } catch (_: Exception) {
+                // The feed still works if this lookup fails.
+            }
+        }
+    }
+
+    fun deferPaymentHistory() {
+        if (historyJob?.isActive == true) return
+        viewModelScope.launch {
+            historyNote = null
+            try {
+                paymentHistory = asOwner { api.deferPaymentHistory(it) }
+            } catch (cause: Exception) {
+                historyNote = cause.message ?: "No se pudo dejar el histórico para después."
+            }
+        }
+    }
+
+    fun startPaymentHistory() {
+        if (historyJob?.isActive == true) return
+        viewModelScope.launch {
+            historyNote = null
+            if (workspace?.planActive() != true) {
+                historyNote = "Activa el plan para traer el histórico."
+                return@launch
+            }
+            val mail = try {
+                gmail ?: asOwner { api.gmailStatus(it) }.also { gmail = it }
+            } catch (cause: Exception) {
+                historyNote = cause.message ?: "No se pudo ver el correo."
+                return@launch
+            }
+            if (!mail.connected) {
+                connectGmail()
+                return@launch
+            }
+            pumpHistory(startFresh = paymentHistory?.status != "running")
+        }
+    }
+
+    private fun pumpHistory(startFresh: Boolean) {
+        if (historyJob?.isActive == true) return
+        historyJob = viewModelScope.launch {
+            try {
+                var status = if (startFresh) {
+                    asOwner { api.startPaymentHistory(it) }
+                } else {
+                    paymentHistory ?: asOwner { api.paymentHistory(it) }
+                }
+                paymentHistory = status
+                if (status.status != "running") return@launch
+                while (true) {
+                    status = asOwner { api.stepPaymentHistory(it) }
+                    paymentHistory = status
+                    if (status.status == "done") break
+                    delay(450)
+                }
+                loadPayments(quiet = true)
+            } catch (cause: Exception) {
+                historyNote = cause.message ?: "No se pudo seguir con el histórico."
+            }
+        }
     }
 
     fun needsPermissionSetup(askSms: Boolean): Boolean =
@@ -193,6 +274,7 @@ class AppViewModel(
         if (smsAllowed == PermissionState.Granted && smsWas != PermissionState.Granted) {
             viewModelScope.launch { runCatching { AppGraph.bankSms.flushPending() } }
         }
+        var openedHome = false
         if (screen is Screen.OwnerPermissions || screen is Screen.OwnerPlan) {
             val onboard = tokens.onboardingStep()
             screen = when {
@@ -200,7 +282,13 @@ class AppViewModel(
                 onboard != null -> Screen.OwnerOnboard(onboard.coerceIn(0, OnboardLastStep))
                 else -> ownerDestination()
             }
-            if (screen is Screen.OwnerHome) onSessionReady()
+            if (screen is Screen.OwnerHome) {
+                onSessionReady()
+                openedHome = true
+            }
+        }
+        if (!openedHome && screen is Screen.OwnerHome && historyJob?.isActive != true) {
+            loadPaymentHistory()
         }
         refreshGmailAndAdvanceOnboard()
     }
@@ -986,6 +1074,7 @@ class AppViewModel(
         syncDevice()
         loadPayments()
         loadGmail()
+        loadPaymentHistory()
         viewModelScope.launch { runCatching { AppGraph.bankSms.flushPending() } }
     }
 
@@ -1004,6 +1093,10 @@ class AppViewModel(
         payUntil = null
         payRange = "todos"
         gmail = null
+        paymentHistory = null
+        historyNote = null
+        historyJob?.cancel()
+        historyJob = null
         notificationPromptDismissed = false
         mailPromptDismissed = false
         error = null

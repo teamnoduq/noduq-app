@@ -34,6 +34,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.TextButton
@@ -67,6 +68,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.noduq.app.AppGraph
 import com.noduq.app.AppViewModel
+import com.noduq.app.planActive
 import com.noduq.app.CreatedEmployeeDto
 import com.noduq.app.EmployeeDto
 import com.noduq.app.OwnerTab
@@ -702,6 +704,7 @@ fun AccountScreen(vm: AppViewModel) {
     LaunchedEffect(Unit) {
         vm.readPermissions()
         vm.loadGmail()
+        vm.loadPaymentHistory()
     }
     LaunchedEffect(vm.workspace) {
         displayName = vm.workspace?.profile?.displayName.orEmpty()
@@ -850,6 +853,10 @@ fun AccountScreen(vm: AppViewModel) {
                 },
                 onRevoke = { vm.openSystemSettings() },
             )
+        }
+
+        vm.paymentHistory?.takeIf { it.status != "missing" }?.let { history ->
+            PaymentHistoryAccountCard(vm, history)
         }
 
         Spacer(Modifier.height(8.dp))
@@ -1046,6 +1053,63 @@ private fun NoduqSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             content = content,
         )
+    }
+}
+
+@Composable
+private fun PaymentHistoryAccountCard(vm: AppViewModel, history: com.noduq.app.HistoryStatusDto) {
+    val subtitle = when (history.status) {
+        "running" -> if (history.total > 0) {
+            "Van ${history.processed} de ${history.total} correos."
+        } else {
+            "Buscando en el correo."
+        }
+        "done" -> if (history.stored == 1) {
+            "Listo. Quedó guardado 1 pago."
+        } else {
+            "Listo. Quedaron guardados ${history.stored} pagos."
+        }
+        "deferred" -> "Lo dejaste para después. Sale del correo, una sola vez."
+        else -> "Pendiente. Revisa el correo del banco desde el 1 de enero de 2026."
+    }
+    AccountCard("Histórico de pagos", subtitle) {
+        when (history.status) {
+            "running" -> {
+                LinearProgressIndicator(
+                    progress = { history.percent.coerceIn(0, 100) / 100f },
+                    modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
+                    color = NoduqColors.cyan,
+                    trackColor = NoduqColors.cyan.copy(alpha = 0.15f),
+                )
+                Text(
+                    "${history.percent}%",
+                    color = NoduqColors.cyan,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 14.sp,
+                )
+                vm.historyNote?.let {
+                    Text(it, color = Color(0xFFF87171), fontSize = 13.sp, lineHeight = 18.sp)
+                }
+            }
+            "done" -> Unit
+            else -> {
+                if (vm.workspace?.planActive() == true) {
+                    PrimaryButton(
+                        if (vm.gmail?.connected == true) "Empezar" else "Conectar correo",
+                        onClick = { vm.startPaymentHistory() },
+                    )
+                } else {
+                    Text(
+                        "Activa el plan para traerlo.",
+                        color = NoduqColors.muted,
+                        fontSize = 14.sp,
+                    )
+                }
+                vm.historyNote?.let {
+                    Text(it, color = Color(0xFFF87171), fontSize = 13.sp, lineHeight = 18.sp)
+                }
+            }
+        }
     }
 }
 

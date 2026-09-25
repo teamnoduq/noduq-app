@@ -108,6 +108,9 @@ expect fun createHttpClient(): io.ktor.client.HttpClient
 
 expect fun isoInstant(millis: Long): String
 
+/** Epoch millis for an ISO instant, or -1 when it cannot be read. */
+expect fun epochMillis(iso: String?): Long
+
 /** "3:11 p. m." for a payment time, or an empty string when the stamp cannot be read. */
 expect fun clockLabel(iso: String?): String
 

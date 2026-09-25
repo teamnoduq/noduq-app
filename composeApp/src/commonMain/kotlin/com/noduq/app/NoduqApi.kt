@@ -82,6 +82,18 @@ class NoduqApi(
     suspend fun ingestSms(token: String, body: SmsIngestRequest): SmsIngestResponseDto =
         request("POST", "/v1/payments/sms", token, body)
 
+    suspend fun paymentHistory(token: String): HistoryStatusDto =
+        request("GET", "/v1/payments/history", token)
+
+    suspend fun deferPaymentHistory(token: String): HistoryStatusDto =
+        request("POST", "/v1/payments/history/defer", token)
+
+    suspend fun startPaymentHistory(token: String): HistoryStatusDto =
+        request("POST", "/v1/payments/history/start", token)
+
+    suspend fun stepPaymentHistory(token: String): HistoryStatusDto =
+        request("POST", "/v1/payments/history/batches", token)
+
     suspend fun registerDevice(token: String, body: RegisterDeviceRequest): DeviceDto =
         request("POST", "/v1/devices", token, body)
 

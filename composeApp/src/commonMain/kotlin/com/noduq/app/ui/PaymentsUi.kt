@@ -40,6 +40,7 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -90,6 +91,7 @@ fun PaymentsScreen(vm: AppViewModel) {
     LaunchedEffect(Unit) {
         vm.loadPayments()
         vm.loadGmail()
+        vm.loadPaymentHistory()
     }
 
     var sheetOpen by rememberSaveable { mutableStateOf(false) }
@@ -182,12 +184,28 @@ fun PaymentsScreen(vm: AppViewModel) {
                     onDismiss = vm::dismissNotificationPrompt,
                 )
             }
+            val history = vm.paymentHistory
+            val planOn = vm.workspace?.planActive() == true
+            val showHistoryOffer = planOn && history?.status == "available"
+            val showHistoryProgress = history?.status == "running"
+            if (history?.status == "running") {
+                Spacer(Modifier.height(16.dp))
+                HistoryProgressCard(history, vm.historyNote)
+            } else if (showHistoryOffer) {
+                Spacer(Modifier.height(16.dp))
+                    HistoryOfferCard(
+                        connected = vm.gmail?.connected == true,
+                        note = vm.historyNote,
+                        onStart = vm::startPaymentHistory,
+                        onSkip = vm::deferPaymentHistory,
+                    )
+            }
             vm.noticesError?.let { message ->
                 Spacer(Modifier.height(12.dp))
                 Banner(message)
                 QuietButton("Reintentar") { vm.loadPayments() }
             }
-            Spacer(Modifier.height(if (showNotificationBanner) 16.dp else 8.dp))
+            Spacer(Modifier.height(if (showNotificationBanner || showHistoryOffer || showHistoryProgress) 16.dp else 8.dp))
         }
         val slidePx = with(LocalDensity.current) { 8.dp.roundToPx() }
         val feedKey = when {
@@ -476,6 +494,75 @@ private fun PaymentSkeletonCard() {
                 .clip(RoundedCornerShape(6.dp))
                 .background(NoduqColors.cyan.copy(alpha = alpha)),
         )
+    }
+}
+
+@Composable
+private fun HistoryOfferCard(connected: Boolean, note: String?, onStart: () -> Unit, onSkip: () -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xFF0F171A))
+            .border(1.dp, NoduqColors.cyan.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            "Traer el histórico de pagos",
+            color = Color.White,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 16.sp,
+        )
+        Text(
+            "Revisa el correo del banco desde el 1 de enero de 2026, de a pocos, y se queda solo con los pagos por QR. Una sola vez.",
+            color = NoduqColors.muted,
+            fontSize = 14.sp,
+            lineHeight = 20.sp,
+        )
+        note?.let {
+            Text(it, color = Color(0xFFF87171), fontSize = 13.sp, lineHeight = 18.sp)
+        }
+        PrimaryButton(if (connected) "Empezar" else "Conectar correo", onClick = onStart)
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            TextButton(onClick = onSkip, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
+                Text("Omitir por ahora", color = NoduqColors.muted, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun HistoryProgressCard(history: com.noduq.app.HistoryStatusDto, note: String?) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFF0F171A))
+            .border(1.dp, NoduqColors.cyan.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            "Histórico de pagos · ${history.percent}%",
+            color = NoduqColors.ink,
+            fontWeight = FontWeight.Medium,
+            fontSize = 14.sp,
+        )
+        LinearProgressIndicator(
+            progress = { history.percent.coerceIn(0, 100) / 100f },
+            modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
+            color = NoduqColors.cyan,
+            trackColor = NoduqColors.cyan.copy(alpha = 0.15f),
+        )
+        Text(
+            if (history.total > 0) "Van ${history.processed} de ${history.total} correos" else "Buscando en el correo…",
+            color = NoduqColors.muted,
+            fontSize = 13.sp,
+        )
+        note?.let {
+            Text(it, color = Color(0xFFF87171), fontSize = 13.sp, lineHeight = 18.sp)
+        }
     }
 }
 

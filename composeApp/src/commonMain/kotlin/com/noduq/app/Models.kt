@@ -155,6 +155,17 @@ data class SmsIngestResponseDto(
 )
 
 @Serializable
+data class HistoryStatusDto(
+    val status: String = "available",
+    val windowFrom: String? = null,
+    val windowUntil: String? = null,
+    val total: Int = 0,
+    val processed: Int = 0,
+    val stored: Int = 0,
+    val percent: Int = 0,
+)
+
+@Serializable
 data class GmailStatusDto(
     val configured: Boolean = false,
     val connected: Boolean = false,
