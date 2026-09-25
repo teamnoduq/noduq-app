@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -63,9 +64,12 @@ import com.noduq.app.EmployeeDto
 import com.noduq.app.OwnerTab
 import com.noduq.app.PermissionState
 import com.noduq.app.Screen
+import com.noduq.app.longDateLabel
 import com.noduq.app.motionEnabled
 import com.noduq.app.needsAttention
 import com.noduq.app.planActive
+import com.noduq.app.planCancelling
+import com.noduq.app.planRenewing
 import com.noduq.app.theme.NoduqColors
 import com.noduq.app.theme.NoduqMotion
 
@@ -685,6 +689,7 @@ fun AccountScreen(vm: AppViewModel) {
     var displayName by rememberSaveable { mutableStateOf(vm.workspace?.profile?.displayName.orEmpty()) }
     var orgName by rememberSaveable { mutableStateOf(vm.workspace?.organization?.name.orEmpty()) }
     var deleteOpen by rememberSaveable { mutableStateOf(false) }
+    var cancelPlanOpen by rememberSaveable { mutableStateOf(false) }
     var confirmation by rememberSaveable { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
@@ -731,71 +736,109 @@ fun AccountScreen(vm: AppViewModel) {
         }
 
         val planOn = vm.workspace?.planActive() == true
-        AccountCard(
-            "Plan",
-            if (planOn) "Activo. NODUQ valida y avisa los pagos." else "Sin plan, NODUQ no valida ni avisa los pagos.",
-        ) {
-            if (planOn) {
-                Text(
-                    "$38.900 / mes · cancela cuando quieras.",
-                    color = NoduqColors.muted,
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp,
-                )
-            } else {
+        val planRenewing = vm.workspace?.planRenewing() == true
+        val planCancelling = vm.workspace?.planCancelling() == true
+        val periodEnd = longDateLabel(vm.workspace?.plan?.periodEndsAt).ifBlank { "el final del periodo" }
+        if (planCancelling) {
+            AccountCard(
+                "Suscripción cancelada",
+                "Tu suscripción finaliza el $periodEnd. Hasta esa fecha la validación automática seguirá funcionando.",
+            ) {
                 PrimaryButton(
-                    if (vm.busy) "Activando…" else "Activar plan · $38.900/mes",
+                    if (vm.busy) "Reactivando…" else "Reactivar plan",
                     loading = vm.busy,
-                    onClick = { vm.buyPlan() },
+                    onClick = { vm.reactivatePlan() },
                 )
+            }
+        } else {
+            AccountCard(
+                "Plan",
+                if (planOn) "Activo. NODUQ valida y avisa los pagos." else "Sin plan, NODUQ no valida ni avisa los pagos.",
+            ) {
+                if (planRenewing) {
+                    Text(
+                        "$24.900 / mes · cancela cuando quieras.",
+                        color = NoduqColors.muted,
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp,
+                    )
+                    TextButton(
+                        onClick = { cancelPlanOpen = true },
+                        enabled = !vm.busy,
+                        modifier = Modifier.heightIn(min = 44.dp),
+                        contentPadding = PaddingValues(horizontal = 0.dp, vertical = 8.dp),
+                    ) {
+                        Text(
+                            "Cancelar suscripción",
+                            color = NoduqColors.muted,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 14.sp,
+                        )
+                    }
+                } else {
+                    PrimaryButton(
+                        if (vm.busy) "Activando…" else "Activar plan · $24.900/mes",
+                        loading = vm.busy,
+                        onClick = { vm.buyPlan() },
+                    )
+                }
             }
         }
 
-        AccountCard("Permisos", "SMS, correo y notificaciones de este celular.") {
-            PermissionAccountRow(
-                icon = Phosphor.Chat,
+        AccountCard(
+            "Permisos y Conexiones",
+            "Administra qué permisos de este celular o cuentas de correo usas para automatizar tus pagos.",
+        ) {
+            PermissionStatusCard(
+                icon = Phosphor.DeviceMobile,
                 title = "SMS",
-                detail = "Lee el comprobante de Bancolombia.",
-                ready = !vm.smsAllowed.needsAttention(),
-                action = vm.smsAllowed.accountAction(),
+                detail = "Para validación automática",
+                granted = !vm.smsAllowed.needsAttention(),
+                grantLabel = vm.smsAllowed.accountGrantLabel(),
+                revokeLabel = if (!vm.smsAllowed.needsAttention()) "Quitar" else null,
                 busy = vm.busy,
-                onAction = {
+                onGrant = {
                     if (vm.smsAllowed == PermissionState.Blocked) vm.openSystemSettings()
                     else vm.askSms()
                 },
+                onRevoke = { vm.openSystemSettings() },
             )
-            PermissionAccountRow(
+            PermissionStatusCard(
                 icon = Phosphor.Envelope,
                 title = "Correo",
                 detail = when {
                     vm.gmail == null -> "Cargando…"
-                    vm.gmail?.connected == true -> vm.gmail?.address ?: "Conectado"
+                    vm.gmail?.connected == true -> vm.gmail?.address ?: "Cuenta vinculada"
                     vm.gmail?.configured == false -> "Gmail aún no está listo en el servidor."
-                    else -> "El comprobante que llega por email."
+                    else -> "Sin cuenta vinculada"
                 },
-                ready = vm.gmail?.connected == true,
-                action = when {
+                granted = vm.gmail?.connected == true,
+                grantLabel = when {
                     vm.gmail == null -> null
-                    vm.gmail?.connected == true -> "Desconectar"
+                    vm.gmail?.connected == true -> null
                     vm.gmail?.configured == false -> null
                     else -> "Conectar"
                 },
+                revokeLabel = if (vm.gmail?.connected == true) "Desconectar" else null,
                 busy = vm.busy,
-                onAction = {
-                    if (vm.gmail?.connected == true) vm.disconnectGmail() else vm.connectGmail()
-                },
+                onGrant = { vm.connectGmail() },
+                onRevoke = { vm.disconnectGmail() },
             )
-            PermissionAccountRow(
+            PermissionStatusCard(
                 icon = Phosphor.Bell,
                 title = "Notificaciones",
-                detail = "Te llegan en este celular.",
-                ready = !vm.notificationsAllowed.needsAttention(),
-                action = vm.notificationsAllowed.accountAction(),
+                detail = "Alertas para el mostrador",
+                granted = !vm.notificationsAllowed.needsAttention(),
+                grantLabel = vm.notificationsAllowed.accountGrantLabel(),
+                revokeLabel = if (
+                    vm.notificationsAllowed == PermissionState.Granted
+                ) "Quitar" else null,
                 busy = vm.busy,
-                onAction = {
+                onGrant = {
                     if (vm.notificationsAllowed == PermissionState.Blocked) vm.openSystemSettings()
                     else vm.askNotifications()
                 },
+                onRevoke = { vm.openSystemSettings() },
             )
         }
 
@@ -854,6 +897,49 @@ fun AccountScreen(vm: AppViewModel) {
             },
         )
     }
+
+    if (cancelPlanOpen) {
+        AlertDialog(
+            onDismissRequest = { if (!vm.busy) cancelPlanOpen = false },
+            properties = DialogProperties(dismissOnClickOutside = !vm.busy),
+            containerColor = Color(0xFF0F171A),
+            shape = RoundedCornerShape(16.dp),
+            titleContentColor = Color.White,
+            textContentColor = NoduqColors.muted,
+            title = { Text("¿Deseas cancelar tu suscripción?") },
+            text = {
+                Text(
+                    "Tus empleados dejarán de recibir la confirmación de pagos en el mostrador al finalizar el periodo actual.",
+                    color = NoduqColors.muted,
+                    fontSize = 15.sp,
+                    lineHeight = 22.sp,
+                )
+            },
+            confirmButton = {
+                PrimaryButton(
+                    "Mantener mi plan",
+                    onClick = { cancelPlanOpen = false },
+                    enabled = !vm.busy,
+                )
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        vm.cancelPlan()
+                        cancelPlanOpen = false
+                    },
+                    enabled = !vm.busy,
+                ) {
+                    Text(
+                        "Sí, cancelar plan",
+                        color = Color(0xFFF87171),
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 15.sp,
+                    )
+                }
+            },
+        )
+    }
 }
 
 @Composable
@@ -878,73 +964,119 @@ private fun AccountCard(
 }
 
 @Composable
-private fun PermissionAccountRow(
+private fun PermissionStatusCard(
     icon: ImageVector,
     title: String,
     detail: String,
-    ready: Boolean,
-    action: String?,
+    granted: Boolean,
+    grantLabel: String?,
+    revokeLabel: String?,
     busy: Boolean,
-    onAction: () -> Unit,
+    onGrant: () -> Unit,
+    onRevoke: () -> Unit,
 ) {
+    val well = Color(0xFF0F171A)
     Row(
-        Modifier.fillMaxWidth(),
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(well)
+            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(16.dp))
+            .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Box(
             Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(NoduqColors.inset),
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(NoduqColors.cyan.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(icon, contentDescription = null, tint = NoduqColors.cyan, modifier = Modifier.size(20.dp))
+            Icon(icon, contentDescription = null, tint = NoduqColors.cyan, modifier = Modifier.size(24.dp))
         }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(title, color = Color.White, fontWeight = FontWeight.Medium, fontSize = 14.sp)
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                if (ready) {
-                    Box(
-                        Modifier
-                            .size(7.dp)
-                            .clip(CircleShape)
-                            .background(NoduqColors.ok),
+        Column(
+            Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            Text(
+                title,
+                color = Color.White,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 15.sp,
+            )
+            Text(
+                detail,
+                color = NoduqColors.muted,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Column(
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            if (granted) {
+                Row(
+                    Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(NoduqColors.cyan.copy(alpha = 0.12f))
+                        .border(1.dp, NoduqColors.cyan.copy(alpha = 0.35f), RoundedCornerShape(999.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        "✓ Activo",
+                        color = NoduqColors.cyan,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 11.sp,
                     )
                 }
-                Text(
-                    when {
-                        ready && action == "Desconectar" -> "Conectado"
-                        ready -> "Concedido"
-                        else -> detail
-                    },
-                    color = if (ready) NoduqColors.ok else NoduqColors.muted,
-                    fontSize = 12.sp,
-                    fontWeight = if (ready) FontWeight.Medium else FontWeight.Normal,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
             }
-            if (ready && action == "Desconectar" && detail.isNotBlank()) {
-                Text(
-                    detail,
-                    color = NoduqColors.muted,
-                    fontSize = 12.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+            if (revokeLabel != null) {
+                TextButton(
+                    onClick = onRevoke,
+                    enabled = !busy,
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                    modifier = Modifier.heightIn(min = 36.dp),
+                    colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                        contentColor = NoduqColors.muted,
+                    ),
+                ) {
+                    Text(
+                        revokeLabel,
+                        color = NoduqColors.muted,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 13.sp,
+                    )
+                }
             }
-        }
-        if (action != null) {
-            QuietButton(action, enabled = !busy, onClick = onAction)
+            if (!granted && grantLabel != null) {
+                TextButton(
+                    onClick = onGrant,
+                    enabled = !busy,
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                    modifier = Modifier.heightIn(min = 40.dp),
+                    colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                        contentColor = NoduqColors.cyan,
+                    ),
+                ) {
+                    Text(
+                        grantLabel,
+                        color = NoduqColors.cyan,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp,
+                    )
+                }
+            }
         }
     }
 }
 
-private fun PermissionState.accountAction(): String? = when (this) {
+private fun PermissionState.accountGrantLabel(): String? = when (this) {
     PermissionState.Denied -> "Permitir"
     PermissionState.Blocked -> "Ajustes"
     PermissionState.Granted, PermissionState.NotNeeded -> null

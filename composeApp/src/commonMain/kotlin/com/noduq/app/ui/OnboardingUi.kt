@@ -1117,7 +1117,7 @@ private fun PlanStep(vm: AppViewModel) {
                     Text("PLAN NEGOCIO", color = NoduqColors.cyan, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp)
                 }
                 Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("$38.900", color = NoduqColors.cyan, fontWeight = FontWeight.SemiBold, fontSize = 40.sp)
+                    Text("$24.900", color = NoduqColors.cyan, fontWeight = FontWeight.SemiBold, fontSize = 40.sp)
                     Text("/mes", color = NoduqColors.muted, fontSize = 16.sp, modifier = Modifier.padding(bottom = 6.dp))
                 }
                 benefits.forEachIndexed { i, line ->

@@ -132,6 +132,9 @@ expect fun nextDayStartIsoFromUtcMillis(utcMillis: Long): String
 /** "19 sep 2026" for a filter field. */
 expect fun filterDateLabel(iso: String?): String
 
+/** "25 de septiembre de 2026" for the plan end date. */
+expect fun longDateLabel(iso: String?): String
+
 @androidx.compose.runtime.Composable
 expect fun BackNavigation(enabled: Boolean = true, onBack: () -> Unit)
 

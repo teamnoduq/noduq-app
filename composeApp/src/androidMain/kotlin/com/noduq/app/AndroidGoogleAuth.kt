@@ -8,9 +8,9 @@ import androidx.browser.customtabs.CustomTabsIntent
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
+import androidx.credentials.GetCredentialResponse
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
-import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import kotlinx.coroutines.CompletableDeferred
@@ -47,16 +47,17 @@ class AndroidGoogleAuth(
     }
 
     override suspend fun signIn(): SupabaseSession {
-        if (config.googleWebClientId.isNotBlank()) {
-            try {
-                return signInNative()
-            } catch (cause: AuthCancelledException) {
-                throw cause
-            } catch (_: GetCredentialException) {
-                // Play Services missing, no account, or console mismatch.
-            }
+        if (config.googleWebClientId.isBlank()) {
+            return signInWithBrowser()
         }
-        return signInWithBrowser()
+        return try {
+            signInNative()
+        } catch (cause: AuthCancelledException) {
+            throw cause
+        } catch (cause: GetCredentialException) {
+            android.util.Log.w("NoduqGoogle", "native Google failed, opening browser: ${cause.message}")
+            signInWithBrowser()
+        }
     }
 
     private suspend fun signInNative(): SupabaseSession {
@@ -64,41 +65,54 @@ class AndroidGoogleAuth(
         val rawNonce = UUID.randomUUID().toString()
         val hashedNonce = sha256Hex(rawNonce)
         val manager = CredentialManager.create(activity)
-        val signInOption = GetSignInWithGoogleOption.Builder(config.googleWebClientId)
-            .setNonce(hashedNonce)
-            .build()
-        val oneTapOption = GetGoogleIdOption.Builder()
-            .setFilterByAuthorizedAccounts(false)
-            .setServerClientId(config.googleWebClientId)
-            .setAutoSelectEnabled(false)
-            .setNonce(hashedNonce)
-            .build()
         val result = try {
             manager.getCredential(
                 context = activity,
-                request = GetCredentialRequest.Builder().addCredentialOption(signInOption).build(),
+                request = GetCredentialRequest.Builder()
+                    .addCredentialOption(
+                        GetSignInWithGoogleOption.Builder(config.googleWebClientId)
+                            .setNonce(hashedNonce)
+                            .build(),
+                    )
+                    .build(),
             )
         } catch (cause: GetCredentialCancellationException) {
-            throw AuthCancelledException()
-        } catch (_: GetCredentialException) {
-            try {
-                manager.getCredential(
-                    context = activity,
-                    request = GetCredentialRequest.Builder().addCredentialOption(oneTapOption).build(),
-                )
-            } catch (inner: GetCredentialCancellationException) {
-                throw AuthCancelledException()
+            android.util.Log.w("NoduqGoogle", "Google sheet dismissed: ${cause.message}")
+            if (isUserDismiss(cause)) throw AuthCancelledException()
+            throw cause
+        }
+        val token = idTokenFrom(result)
+        android.util.Log.i("NoduqGoogle", "got id token length=${token.length}")
+        return try {
+            supabase.signInWithGoogleIdToken(token, rawNonce)
+        } catch (cause: ApiException) {
+            android.util.Log.e("NoduqGoogle", "supabase id_token failed: ${cause.code} ${cause.message}")
+            val nonceProblem = cause.message.orEmpty().contains("nonce", ignoreCase = true) ||
+                cause.code.contains("nonce", ignoreCase = true)
+            if (nonceProblem) {
+                supabase.signInWithGoogleIdToken(token, null)
+            } else {
+                throw cause
             }
         }
+    }
+
+    private fun idTokenFrom(result: GetCredentialResponse): String {
         val credential = result.credential
-        val token = if (credential is CustomCredential &&
+        if (credential is CustomCredential &&
             credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
         ) {
-            GoogleIdTokenCredential.createFrom(credential.data).idToken
-        } else {
-            throw ApiException(0, "AUTH", "Google no devolvió el token.")
+            return GoogleIdTokenCredential.createFrom(credential.data).idToken
         }
-        return supabase.signInWithGoogleIdToken(token, rawNonce)
+        android.util.Log.e("NoduqGoogle", "unexpected credential ${credential::class.simpleName} type=${credential.type}")
+        throw ApiException(0, "AUTH", "Google no devolvió el token.")
+    }
+
+    private fun isUserDismiss(cause: GetCredentialCancellationException): Boolean {
+        val detail = cause.message.orEmpty()
+        if (detail.contains("reauth", ignoreCase = true)) return false
+        if (detail.contains("[16]") && detail.contains("failed", ignoreCase = true)) return false
+        return true
     }
 
     private suspend fun signInWithBrowser(): SupabaseSession {

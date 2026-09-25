@@ -614,7 +614,7 @@ fun OwnerPlanScreen(vm: AppViewModel) {
         footer = {
             vm.error?.let { Banner(it) }
             PrimaryButton(
-                text = if (vm.busy) "Activando…" else "Suscribirme por $38.900/mes",
+                text = if (vm.busy) "Activando…" else "Suscribirme por $24.900/mes",
                 loading = vm.busy,
                 hero = true,
                 onClick = { vm.buyPlan() },
@@ -644,7 +644,7 @@ fun OwnerPlanScreen(vm: AppViewModel) {
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                "$38.900",
+                "$24.900",
                 style = androidx.compose.material3.MaterialTheme.typography.displayLarge.copy(
                     color = NoduqColors.cyan,
                     fontSize = 56.sp,

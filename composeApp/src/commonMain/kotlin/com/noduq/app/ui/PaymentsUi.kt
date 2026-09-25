@@ -60,9 +60,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.noduq.app.OwnerTab
 import com.noduq.app.AppViewModel
 import com.noduq.app.PaymentNoticeDto
 import com.noduq.app.PermissionState
+import com.noduq.app.Screen
 import com.noduq.app.clockLabel
 import com.noduq.app.dayStartIsoFromUtcMillis
 import com.noduq.app.filterDateLabel
@@ -213,6 +215,10 @@ fun PaymentsScreen(vm: AppViewModel) {
                     EmptyPayments(
                         todayish = vm.payRange == "todos" || vm.payRange == "hoy",
                         planActive = vm.workspace?.planActive() == true,
+                        onActivate = {
+                            vm.go(Screen.OwnerHome(OwnerTab.Cuenta))
+                            vm.buyPlan()
+                        },
                     )
                 }
                 else -> LazyColumn(
@@ -455,7 +461,48 @@ private fun PaymentSkeletonCard() {
 }
 
 @Composable
-private fun EmptyPayments(todayish: Boolean, planActive: Boolean) {
+private fun EmptyPayments(todayish: Boolean, planActive: Boolean, onActivate: () -> Unit) {
+    if (!planActive) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(
+                Modifier
+                    .size(64.dp)
+                    .clip(CircleShape)
+                    .background(NoduqColors.ink.copy(alpha = 0.08f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Phosphor.ShieldWarning,
+                    contentDescription = null,
+                    tint = NoduqColors.muted,
+                    modifier = Modifier.size(28.dp),
+                )
+            }
+            Text(
+                "Validación automática inactiva",
+                color = Color.White,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 20.sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            )
+            Text(
+                "Activa tu plan para que NODUQ valide los pagos por QR y notifique a tu equipo en tiempo real.",
+                color = NoduqColors.muted,
+                fontSize = 15.sp,
+                lineHeight = 22.sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            )
+            Spacer(Modifier.height(4.dp))
+            PrimaryButton(
+                "Activar plan · $24.900/mes",
+                onClick = onActivate,
+            )
+        }
+        return
+    }
     val pulse = rememberInfiniteTransition(label = "empty")
     val wash by pulse.animateFloat(
         initialValue = 0.16f,
@@ -492,11 +539,7 @@ private fun EmptyPayments(todayish: Boolean, planActive: Boolean) {
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
         Text(
-            if (!planActive) {
-                "Sin plan, NODUQ no valida ni avisa los pagos. Actívalo en Cuenta."
-            } else {
-                "Los pagos confirmados aparecerán aquí automáticamente."
-            },
+            "Los pagos confirmados aparecerán aquí automáticamente.",
             color = NoduqColors.muted,
             fontSize = 15.sp,
             lineHeight = 22.sp,

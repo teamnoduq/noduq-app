@@ -54,6 +54,16 @@ data class PlanDto(
 
 fun WorkspaceDto.planActive(): Boolean = plan?.active == true
 
+/** Pagado y renovando: la tarjeta verde de plan activo. */
+fun WorkspaceDto.planRenewing(): Boolean = plan?.renewing() == true
+
+/** Canceló, pero el ciclo actual sigue abierto. */
+fun WorkspaceDto.planCancelling(): Boolean = plan?.cancelling() == true
+
+fun PlanDto.renewing(): Boolean = active && !status.equals("cancelled", ignoreCase = true)
+
+fun PlanDto.cancelling(): Boolean = active && status.equals("cancelled", ignoreCase = true)
+
 @Serializable
 data class EmployeeDto(
     val id: String,

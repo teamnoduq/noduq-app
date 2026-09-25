@@ -112,6 +112,12 @@ class NoduqApi(
     suspend fun activatePlan(token: String): PlanDto =
         request("POST", "/v1/billing/activate", token)
 
+    suspend fun cancelPlan(token: String): PlanDto =
+        request("POST", "/v1/billing/cancel", token)
+
+    suspend fun reactivatePlan(token: String): PlanDto =
+        request("POST", "/v1/billing/reactivate", token)
+
     suspend fun employeeLogin(username: String, code: String): EmployeeSessionDto =
         request("POST", "/v1/employee/sessions", token = null, body = EmployeeLoginRequest(username, code))
 
@@ -159,8 +165,11 @@ class SupabaseAuthApi(
     suspend fun signIn(email: String, password: String): SupabaseSession =
         auth("token?grant_type=password", SupabasePasswordGrant(email, password))
 
-    suspend fun signInWithGoogleIdToken(idToken: String, nonce: String): SupabaseSession =
-        auth("token?grant_type=id_token", SupabaseIdTokenGrant(idToken = idToken, nonce = nonce))
+    suspend fun signInWithGoogleIdToken(idToken: String, nonce: String?): SupabaseSession =
+        auth(
+            "token?grant_type=id_token",
+            SupabaseIdTokenGrant(idToken = idToken, nonce = nonce?.takeIf { it.isNotBlank() }),
+        )
 
     suspend fun exchangePkce(authCode: String, codeVerifier: String): SupabaseSession =
         auth("token?grant_type=pkce", SupabasePkceGrant(authCode = authCode, codeVerifier = codeVerifier))

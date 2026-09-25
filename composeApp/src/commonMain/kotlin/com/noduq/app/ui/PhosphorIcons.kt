@@ -141,6 +141,13 @@ internal object Phosphor {
         )
     }
 
+    val ShieldWarning: ImageVector by lazy {
+        phosphorFill(
+            name = "ShieldWarning",
+            path = "M208,40H48A16,16,0,0,0,32,56v56c0,52.72,25.52,84.67,46.93,102.19,23.06,18.86,46,25.26,47,25.53a8,8,0,0,0,4.2,0c1-.27,23.91-6.67,47-25.53C198.48,196.67,224,164.72,224,112V56A16,16,0,0,0,208,40Zm-72,143.42a12,12,0,1,1-12-12A12,12,0,0,1,136,183.42ZM140,128a8,8,0,0,1-16,0V80a8,8,0,0,1,16,0Z",
+        )
+    }
+
     val ShieldCheck: ImageVector by lazy {
         phosphorFill(
             name = "ShieldCheck",

@@ -124,11 +124,17 @@ actual fun filterDateLabel(iso: String?): String {
     return FILTER_DAY.format(moment.atZone(ZONE).toLocalDate())
 }
 
+actual fun longDateLabel(iso: String?): String {
+    val moment = readInstant(iso) ?: return ""
+    return LONG_DAY.format(moment.atZone(ZONE).toLocalDate())
+}
+
 private val ZONE: ZoneId = ZoneId.systemDefault()
 private val SPANISH = Locale("es", "CO")
 private val CLOCK = DateTimeFormatter.ofPattern("h:mm a", SPANISH)
 private val DAY = DateTimeFormatter.ofPattern("d MMM", SPANISH)
 private val FILTER_DAY = DateTimeFormatter.ofPattern("d MMM yyyy", SPANISH)
+private val LONG_DAY = DateTimeFormatter.ofPattern("d 'de' MMMM 'de' yyyy", SPANISH)
 
 /** Tolerant on purpose: the server may spell instants as text or as epoch seconds. */
 private fun readInstant(iso: String?): Instant? {

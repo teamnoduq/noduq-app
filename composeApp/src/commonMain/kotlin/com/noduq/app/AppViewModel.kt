@@ -672,6 +672,38 @@ class AppViewModel(
         }
     }
 
+    fun cancelPlan() {
+        launchWork {
+            val token = requireOwnerToken() ?: return@launchWork
+            val plan = api.cancelPlan(token)
+            workspace = workspace?.copy(plan = plan)
+        }
+    }
+
+    fun reactivatePlan() {
+        val cancelling = workspace?.planCancelling() == true
+        if (!cancelling) {
+            buyPlan()
+            return
+        }
+        launchWork("Reactivando…") {
+            val token = requireOwnerToken() ?: return@launchWork
+            try {
+                val plan = api.reactivatePlan(token)
+                workspace = workspace?.copy(plan = plan)
+            } catch (cause: ApiException) {
+                if (cause.code == "PLAN_REQUIRED") {
+                    throw ApiException(
+                        cause.status,
+                        cause.code,
+                        "El periodo ya cerró. Activa el plan otra vez.",
+                    )
+                }
+                throw cause
+            }
+        }
+    }
+
     fun finishPermissions() {
         readPermissions()
         screen = ownerDestination()
