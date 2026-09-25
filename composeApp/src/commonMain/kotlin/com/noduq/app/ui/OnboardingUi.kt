@@ -86,6 +86,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.noduq.app.AppViewModel
 import com.noduq.app.motionEnabled
+import com.noduq.app.needsAttention
 import com.noduq.app.planActive
 import com.noduq.app.resources.Res
 import com.noduq.app.resources.logo_nq_cian_noche
@@ -94,7 +95,7 @@ import com.noduq.app.theme.NoduqMotion
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.painterResource
 
-private const val ONBOARD_STEPS = 7
+private const val ONBOARD_STEPS = 8
 private const val DefaultShopPreview = "MI NEGOCIO"
 private const val NoticePayer = "RONALDINHO ORTEGA RUIZ"
 
@@ -124,7 +125,7 @@ fun OwnerOnboardScreen(vm: AppViewModel, step: Int) {
             Modifier.padding(start = 10.dp, top = 4.dp, end = 22.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (step < 6) BackIconButton(onClick = { vm.onboardBack() })
+            if (step < 7) BackIconButton(onClick = { vm.onboardBack() })
             BrandMark(compact = true)
         }
         AnimatedContent(
@@ -152,9 +153,10 @@ fun OwnerOnboardScreen(vm: AppViewModel, step: Int) {
                 0 -> WelcomeStep { vm.goOnboard(1) }
                 1 -> SmsStep(vm)
                 2 -> GmailStep(vm)
-                3 -> ShopStep(vm)
-                4 -> NameStep(vm)
-                5 -> PlanStep(vm)
+                3 -> NoticesStep(vm)
+                4 -> ShopStep(vm)
+                5 -> NameStep(vm)
+                6 -> PlanStep(vm)
                 else -> SuccessStep(vm)
             }
         }
@@ -498,7 +500,7 @@ private fun SmsStep(vm: AppViewModel) {
     var skipConfirm by remember { mutableStateOf(false) }
     StepBody(
         title = "Detección automática por SMS",
-        lede = "Leemos las notificaciones bancarias en segundo plano para validar los pagos de tu negocio al instante.",
+        lede = "Leemos el comprobante de Bancolombia en segundo plano para validar los pagos de tu negocio al instante.",
         art = { BankNoticeCard(Phosphor.Chat, "SMS de confirmación recibido", "Bancolombia") },
         footer = {
             vm.error?.let { Banner(it) }
@@ -532,7 +534,7 @@ private fun SmsStep(vm: AppViewModel) {
                 lineHeight = 22.sp,
             )
             Text(
-                "Solo analizamos las notificaciones de remitentes oficiales de entidades financieras. Tu bandeja personal no se lee, no se guarda ni se comparte jamás.",
+                "Solo leemos el comprobante de Bancolombia. El resto de la bandeja no se toca, no se guarda ni se comparte.",
                 color = NoduqColors.muted,
                 fontSize = 14.sp,
                 lineHeight = 21.sp,
@@ -561,7 +563,7 @@ private fun SmsStep(vm: AppViewModel) {
                 lineHeight = 26.sp,
             )
             Text(
-                "Sin este permiso, NODUQ no podrá validar los pagos de tu QR en tiempo real. Tu equipo no recibirá las notificaciones automáticas en el mostrador.",
+                "Sin este permiso, NODUQ no lee el comprobante de Bancolombia. El correo es otro camino.",
                 color = NoduqColors.muted,
                 fontSize = 15.sp,
                 lineHeight = 22.sp,
@@ -794,6 +796,111 @@ private fun GmailStep(vm: AppViewModel) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun NoticesStep(vm: AppViewModel) {
+    var skipConfirm by remember { mutableStateOf(false) }
+    StepBody(
+        title = "Tus empleados y el panel también lo ven",
+        lede = "Cuando llega el comprobante, sale una notificación en el panel web y en los teléfonos del equipo. Este permiso es para que también te llegue a ti, en este celular.",
+        art = { TillRingCard() },
+        footer = {
+            vm.error?.let { Banner(it) }
+            PrimaryButton(
+                "Permitir notificaciones",
+                loading = vm.busy,
+                hero = true,
+                onClick = { vm.onboardGrantNotifications() },
+            )
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                DiscreteSkipLink("Ahora no") { skipConfirm = true }
+            }
+        },
+    )
+    if (skipConfirm) {
+        NoduqDialog(onDismiss = { skipConfirm = false }) {
+            Box(
+                Modifier
+                    .size(52.dp)
+                    .clip(CircleShape)
+                    .background(NoduqColors.cyan.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Phosphor.WarningCircle, null, tint = NoduqColors.cyan, modifier = Modifier.size(26.dp))
+            }
+            Text(
+                "¿Seguro que quieres omitir?",
+                color = Color.White,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 20.sp,
+                lineHeight = 26.sp,
+            )
+            Text(
+                "No te llegarían notificaciones a este teléfono. Tus empleados sí pueden recibirlas en los suyos.",
+                color = NoduqColors.muted,
+                fontSize = 15.sp,
+                lineHeight = 22.sp,
+            )
+            PrimaryButton(
+                "Entendido, activar notificaciones",
+                loading = vm.busy,
+                onClick = {
+                    skipConfirm = false
+                    vm.onboardGrantNotifications()
+                },
+            )
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                DiscreteSkipLink("Continuar de todos modos") {
+                    skipConfirm = false
+                    vm.goOnboard(4)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TillRingCard() {
+    val motion = rememberInfiniteTransition(label = "till-bell")
+    val scale by motion.animateFloat(
+        1f,
+        1.08f,
+        infiniteRepeatable(tween(1400, easing = NoduqMotion.easeOut), RepeatMode.Reverse),
+        label = "bell",
+    )
+    val pulse = if (motionEnabled()) scale else 1f
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(NoticeFill)
+            .border(1.dp, NoticeLine, RoundedCornerShape(16.dp))
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Box(
+                Modifier
+                    .size(36.dp)
+                    .scale(pulse)
+                    .clip(CircleShape)
+                    .background(NoduqColors.cyan.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Phosphor.Bell, null, tint = NoduqColors.cyan, modifier = Modifier.size(18.dp))
+            }
+            Column(Modifier.weight(1f)) {
+                Text("NODUQ", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                Text("ahora", color = NoduqColors.muted, fontSize = 11.sp)
+            }
+        }
+        Text("El pago llegó.", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, lineHeight = 24.sp)
+        Text("$48.000 · Ronaldinho Ortega", color = NoduqColors.ink.copy(alpha = 0.88f), fontSize = 14.sp, lineHeight = 20.sp)
     }
 }
 
@@ -1071,7 +1178,7 @@ private fun PlanStep(vm: AppViewModel) {
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 DiscreteSkipLink("Continuar de todos modos") {
                     skipConfirm = false
-                    vm.goOnboard(6)
+                    vm.goOnboard(7)
                 }
             }
         }
@@ -1086,6 +1193,7 @@ private fun SuccessStep(vm: AppViewModel) {
         "Negocio configurado" to true,
         "SMS vinculado" to vm.readsBankSms,
         "Gmail conectado" to (vm.gmail?.connected == true),
+        "Notificaciones" to !vm.notificationsAllowed.needsAttention(),
         "Plan activo" to planOn,
     )
     LaunchedEffect(Unit) {

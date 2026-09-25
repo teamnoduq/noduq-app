@@ -29,6 +29,8 @@ sealed interface Screen {
     data object EmployeeWait : Screen
 }
 
+internal const val OnboardLastStep = 7
+
 class AppViewModel(
     private val tokens: TokenStore,
     private val api: NoduqApi,
@@ -181,7 +183,7 @@ class AppViewModel(
             val onboard = tokens.onboardingStep()
             screen = when {
                 workspace != null -> Screen.OwnerHome()
-                onboard != null -> Screen.OwnerOnboard(onboard.coerceIn(0, 6))
+                onboard != null -> Screen.OwnerOnboard(onboard.coerceIn(0, OnboardLastStep))
                 else -> ownerDestination()
             }
             if (screen is Screen.OwnerHome) onSessionReady()
@@ -387,7 +389,7 @@ class AppViewModel(
             )
             hydrateOnboardDrafts()
             if (tokens.onboardingStep() != null) {
-                goOnboard(5)
+                goOnboard(6)
             } else {
                 screen = ownerDestination()
                 if (screen is Screen.OwnerHome) onSessionReady()
@@ -662,7 +664,7 @@ class AppViewModel(
             val plan = api.activatePlan(token)
             workspace = workspace?.copy(plan = plan)
             if (tokens.onboardingStep() != null) {
-                goOnboard(6)
+                goOnboard(7)
             } else {
                 screen = ownerDestination()
                 if (screen is Screen.OwnerHome) onSessionReady()
@@ -679,7 +681,7 @@ class AppViewModel(
     fun goOnboard(step: Int) {
         error = null
         hydrateOnboardDrafts()
-        val next = step.coerceIn(0, 6)
+        val next = step.coerceIn(0, OnboardLastStep)
         tokens.setOnboardingStep(next)
         screen = Screen.OwnerOnboard(next)
     }
@@ -708,7 +710,6 @@ class AppViewModel(
     fun onboardGrantSms() {
         viewModelScope.launch {
             try {
-                notificationsAllowed = AppGraph.permissions.requestNotifications()
                 smsAllowed = AppGraph.permissions.requestSms()
                 if (smsAllowed == PermissionState.Granted) {
                     runCatching { AppGraph.bankSms.flushPending() }
@@ -716,6 +717,17 @@ class AppViewModel(
                 syncDevice()
             } finally {
                 goOnboard(2)
+            }
+        }
+    }
+
+    fun onboardGrantNotifications() {
+        viewModelScope.launch {
+            try {
+                notificationsAllowed = AppGraph.permissions.requestNotifications()
+                syncDevice()
+            } finally {
+                goOnboard(4)
             }
         }
     }
@@ -733,17 +745,17 @@ class AppViewModel(
             val token = requireOwnerToken() ?: return
             launchWork("Guardando…") {
                 workspace = api.patchOrganization(token, PatchOrganizationRequest(name))
-                goOnboard(4)
+                goOnboard(5)
             }
             return
         }
-        goOnboard(4)
+        goOnboard(5)
     }
 
     fun onboardSkipShop() {
         onboardShop = "Mi negocio"
         tokens.setOnboardShop(onboardShop)
-        goOnboard(4)
+        goOnboard(5)
     }
 
     fun onboardSaveName() {
@@ -761,7 +773,7 @@ class AppViewModel(
         }
         val current = workspace?.profile?.displayName.orEmpty()
         if (workspace != null && person == current) {
-            goOnboard(5)
+            goOnboard(6)
             return
         }
         if (workspace != null) {
@@ -769,7 +781,7 @@ class AppViewModel(
             launchWork("Guardando…") {
                 val profile = api.patchMe(token, PatchNameRequest(person))
                 workspace = workspace?.copy(profile = profile)
-                goOnboard(5)
+                goOnboard(6)
             }
             return
         }
@@ -860,14 +872,14 @@ class AppViewModel(
                 if (onboard == null) {
                     clearOnboardDrafts()
                 }
-                screen = Screen.OwnerOnboard(step.coerceIn(0, 6))
+                screen = Screen.OwnerOnboard(step.coerceIn(0, OnboardLastStep))
                 return
             }
             throw cause
         }
         hydrateOnboardDrafts()
         if (onboard != null) {
-            screen = Screen.OwnerOnboard(onboard.coerceIn(0, 6))
+            screen = Screen.OwnerOnboard(onboard.coerceIn(0, OnboardLastStep))
             return
         }
         screen = ownerDestination()

@@ -61,8 +61,10 @@ import com.noduq.app.AppViewModel
 import com.noduq.app.CreatedEmployeeDto
 import com.noduq.app.EmployeeDto
 import com.noduq.app.OwnerTab
+import com.noduq.app.PermissionState
 import com.noduq.app.Screen
 import com.noduq.app.motionEnabled
+import com.noduq.app.needsAttention
 import com.noduq.app.planActive
 import com.noduq.app.theme.NoduqColors
 import com.noduq.app.theme.NoduqMotion
@@ -685,7 +687,10 @@ fun AccountScreen(vm: AppViewModel) {
     var deleteOpen by rememberSaveable { mutableStateOf(false) }
     var confirmation by rememberSaveable { mutableStateOf("") }
 
-    LaunchedEffect(Unit) { vm.loadGmail() }
+    LaunchedEffect(Unit) {
+        vm.readPermissions()
+        vm.loadGmail()
+    }
     LaunchedEffect(vm.workspace) {
         displayName = vm.workspace?.profile?.displayName.orEmpty()
         orgName = vm.workspace?.organization?.name.orEmpty()
@@ -746,22 +751,52 @@ fun AccountScreen(vm: AppViewModel) {
             }
         }
 
-        AccountCard("Sincronización", "Gmail verifica el aviso del banco, más tarde.") {
-            when {
-                vm.gmail == null -> Text("Cargando…", color = NoduqColors.muted, fontSize = 14.sp)
-                vm.gmail?.connected == true -> GmailConnectedRow(
-                    address = vm.gmail?.address ?: "Gmail",
-                    busy = vm.busy,
-                    onDisconnect = { vm.disconnectGmail() },
-                )
-                vm.gmail?.configured == false -> Text(
-                    "Gmail aún no está listo en el servidor.",
-                    color = NoduqColors.muted,
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp,
-                )
-                else -> PrimaryButton("Conectar Gmail", loading = vm.busy, onClick = { vm.connectGmail() })
-            }
+        AccountCard("Permisos", "SMS, correo y notificaciones de este celular.") {
+            PermissionAccountRow(
+                icon = Phosphor.Chat,
+                title = "SMS",
+                detail = "Lee el comprobante de Bancolombia.",
+                ready = !vm.smsAllowed.needsAttention(),
+                action = vm.smsAllowed.accountAction(),
+                busy = vm.busy,
+                onAction = {
+                    if (vm.smsAllowed == PermissionState.Blocked) vm.openSystemSettings()
+                    else vm.askSms()
+                },
+            )
+            PermissionAccountRow(
+                icon = Phosphor.Envelope,
+                title = "Correo",
+                detail = when {
+                    vm.gmail == null -> "Cargando…"
+                    vm.gmail?.connected == true -> vm.gmail?.address ?: "Conectado"
+                    vm.gmail?.configured == false -> "Gmail aún no está listo en el servidor."
+                    else -> "El comprobante que llega por email."
+                },
+                ready = vm.gmail?.connected == true,
+                action = when {
+                    vm.gmail == null -> null
+                    vm.gmail?.connected == true -> "Desconectar"
+                    vm.gmail?.configured == false -> null
+                    else -> "Conectar"
+                },
+                busy = vm.busy,
+                onAction = {
+                    if (vm.gmail?.connected == true) vm.disconnectGmail() else vm.connectGmail()
+                },
+            )
+            PermissionAccountRow(
+                icon = Phosphor.Bell,
+                title = "Notificaciones",
+                detail = "Te llegan en este celular.",
+                ready = !vm.notificationsAllowed.needsAttention(),
+                action = vm.notificationsAllowed.accountAction(),
+                busy = vm.busy,
+                onAction = {
+                    if (vm.notificationsAllowed == PermissionState.Blocked) vm.openSystemSettings()
+                    else vm.askNotifications()
+                },
+            )
         }
 
         Spacer(Modifier.height(8.dp))
@@ -843,10 +878,14 @@ private fun AccountCard(
 }
 
 @Composable
-private fun GmailConnectedRow(
-    address: String,
+private fun PermissionAccountRow(
+    icon: ImageVector,
+    title: String,
+    detail: String,
+    ready: Boolean,
+    action: String?,
     busy: Boolean,
-    onDisconnect: () -> Unit,
+    onAction: () -> Unit,
 ) {
     Row(
         Modifier.fillMaxWidth(),
@@ -860,23 +899,53 @@ private fun GmailConnectedRow(
                 .background(NoduqColors.inset),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(NoduqIcons.Mail, contentDescription = null, tint = NoduqColors.cyan, modifier = Modifier.size(20.dp))
+            Icon(icon, contentDescription = null, tint = NoduqColors.cyan, modifier = Modifier.size(20.dp))
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(address, color = Color.White, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+            Text(title, color = Color.White, fontWeight = FontWeight.Medium, fontSize = 14.sp)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Box(
-                    Modifier
-                        .size(7.dp)
-                        .clip(CircleShape)
-                        .background(NoduqColors.ok),
+                if (ready) {
+                    Box(
+                        Modifier
+                            .size(7.dp)
+                            .clip(CircleShape)
+                            .background(NoduqColors.ok),
+                    )
+                }
+                Text(
+                    when {
+                        ready && action == "Desconectar" -> "Conectado"
+                        ready -> "Concedido"
+                        else -> detail
+                    },
+                    color = if (ready) NoduqColors.ok else NoduqColors.muted,
+                    fontSize = 12.sp,
+                    fontWeight = if (ready) FontWeight.Medium else FontWeight.Normal,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                 )
-                Text("Conectado", color = NoduqColors.ok, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            }
+            if (ready && action == "Desconectar" && detail.isNotBlank()) {
+                Text(
+                    detail,
+                    color = NoduqColors.muted,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
-        QuietButton("Desconectar", enabled = !busy, onClick = onDisconnect)
+        if (action != null) {
+            QuietButton(action, enabled = !busy, onClick = onAction)
+        }
     }
+}
+
+private fun PermissionState.accountAction(): String? = when (this) {
+    PermissionState.Denied -> "Permitir"
+    PermissionState.Blocked -> "Ajustes"
+    PermissionState.Granted, PermissionState.NotNeeded -> null
 }

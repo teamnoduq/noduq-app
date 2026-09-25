@@ -64,7 +64,7 @@ fun NoduqRoot(vm: AppViewModel) {
             vm.screen is Screen.OwnerForgotPassword ||
             vm.screen is Screen.OwnerResetSent ||
             vm.screen is Screen.EmployeeLogin ||
-            (vm.screen is Screen.OwnerOnboard && (vm.screen as Screen.OwnerOnboard).step < 6)
+            (vm.screen is Screen.OwnerOnboard && (vm.screen as Screen.OwnerOnboard).step < 7)
         BackNavigation(enabled = canBack) { vm.back() }
     }
 }
