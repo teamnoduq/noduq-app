@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -30,8 +31,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.TextButton
-import androidx.compose.runtime.remember
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.delay
@@ -690,6 +696,7 @@ fun AccountScreen(vm: AppViewModel) {
     var displayName by rememberSaveable { mutableStateOf(vm.workspace?.profile?.displayName.orEmpty()) }
     var orgName by rememberSaveable { mutableStateOf(vm.workspace?.organization?.name.orEmpty()) }
     var deleteOpen by rememberSaveable { mutableStateOf(false) }
+    var deleteConfirm by rememberSaveable { mutableStateOf("") }
     var cancelPlanOpen by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -707,6 +714,8 @@ fun AccountScreen(vm: AppViewModel) {
     val planRenewing = vm.workspace?.planRenewing() == true
     val planCancelling = vm.workspace?.planCancelling() == true
     val periodEnd = longDateLabel(vm.workspace?.plan?.periodEndsAt).ifBlank { "el final del periodo" }
+    val businessName = vm.workspace?.organization?.name.orEmpty()
+    val deleteNameMatches = deleteConfirm == businessName && businessName.isNotEmpty()
 
     Column(
         Modifier
@@ -776,8 +785,8 @@ fun AccountScreen(vm: AppViewModel) {
                         )
                     }
                 } else {
-                    PlanBenefit("Validaciones automáticas e ilimitadas por SMS y Correo.")
-                    PlanBenefit("Notificaciones instantáneas para tu equipo en el mostrador.")
+                    PlanBenefit("Validaciones automáticas e ilimitadas por SMS y Correo")
+                    PlanBenefit("Notificaciones instantáneas para tu equipo en el mostrador")
                     PrimaryButton(
                         if (vm.busy) "Activando…" else "Activar plan · $24.900/mes",
                         loading = vm.busy,
@@ -847,24 +856,26 @@ fun AccountScreen(vm: AppViewModel) {
         Spacer(Modifier.height(8.dp))
         AccountCard("Sesión y cuenta") {
             GhostButton("Cerrar sesión", onClick = { vm.ownerSignOut() })
-            TextButton(
-                onClick = { deleteOpen = true },
+            AccountDangerButton(
+                "Eliminar cuenta",
                 enabled = !vm.busy,
-                modifier = Modifier.heightIn(min = 44.dp),
-                contentPadding = PaddingValues(horizontal = 0.dp, vertical = 8.dp),
-            ) {
-                Text(
-                    "Eliminar cuenta",
-                    color = Color(0xFFF87171),
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 14.sp,
-                )
-            }
+                onClick = {
+                    deleteConfirm = ""
+                    deleteOpen = true
+                },
+            )
         }
     }
 
     if (deleteOpen) {
-        NoduqSheet(onDismiss = { if (!vm.busy) deleteOpen = false }) {
+        NoduqSheet(
+            onDismiss = {
+                if (!vm.busy) {
+                    deleteOpen = false
+                    deleteConfirm = ""
+                }
+            },
+        ) {
             Text(
                 "¿Eliminar cuenta de NODUQ?",
                 color = Color.White,
@@ -872,14 +883,14 @@ fun AccountScreen(vm: AppViewModel) {
                 fontSize = 18.sp,
             )
             Text(
-                "Esta acción es irreversible. Se borrarán tus datos, la configuración de tu negocio y la conexión con tus empleados de forma permanente.",
+                "Esta acción es permanente e irreversible. Perderás la configuración de tu local, tu historial y la conexión con tus empleados.",
                 color = NoduqColors.muted,
                 fontSize = 15.sp,
                 lineHeight = 22.sp,
             )
             if (planOn) {
                 Text(
-                    "Atención: Borrar tu cuenta de NODUQ no cancela automáticamente tu cobro recurrente. Para evitar futuros cobros, debes gestionar tu suscripción desde Google Play Store.",
+                    "Atención: Borrar la cuenta no cancela tu cobro recurrente. Cancela tu suscripción en Google Play Store para evitar cargos.",
                     color = Color(0xFFFDE68A),
                     fontSize = 12.sp,
                     lineHeight = 18.sp,
@@ -896,21 +907,57 @@ fun AccountScreen(vm: AppViewModel) {
                     enabled = !vm.busy,
                     onClick = { AppGraph.links.open(PLAY_SUBSCRIPTIONS) },
                 )
-                GhostButton(
-                    if (vm.busy) "Eliminando…" else "Entendido, eliminar mi cuenta de todos modos",
-                    danger = true,
-                    enabled = !vm.busy,
-                    onClick = { vm.deleteAccount() },
-                )
-            } else {
-                GhostButton(
-                    if (vm.busy) "Eliminando…" else "Sí, eliminar mi cuenta",
-                    danger = true,
-                    enabled = !vm.busy,
-                    onClick = { vm.deleteAccount() },
+            }
+            Text(
+                "Para confirmar, escribe el nombre de tu negocio ($businessName):",
+                color = Color(0xFF9CA3AF),
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+            )
+            OutlinedTextField(
+                value = deleteConfirm,
+                onValueChange = { deleteConfirm = it },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !vm.busy,
+                placeholder = {
+                    Text("Nombre del negocio", color = NoduqColors.muted, fontSize = 15.sp)
+                },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                shape = RoundedCornerShape(12.dp),
+                textStyle = androidx.compose.material3.LocalTextStyle.current.copy(color = Color.White),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    disabledTextColor = NoduqColors.muted,
+                    focusedBorderColor = Color.White.copy(alpha = 0.22f),
+                    unfocusedBorderColor = Color.White.copy(alpha = 0.10f),
+                    focusedContainerColor = Color(0xFF0F171A),
+                    unfocusedContainerColor = Color(0xFF0F171A),
+                    disabledContainerColor = Color(0xFF0F171A),
+                    cursorColor = NoduqColors.cyan,
+                ),
+            )
+            AccountDangerButton(
+                if (vm.busy) "Eliminando…" else "Eliminar mi cuenta definitivamente",
+                enabled = deleteNameMatches && !vm.busy,
+                onClick = { vm.deleteAccount() },
+            )
+            TextButton(
+                onClick = {
+                    deleteOpen = false
+                    deleteConfirm = ""
+                },
+                enabled = !vm.busy,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+            ) {
+                Text(
+                    "Cancelar",
+                    color = Color(0xFF9CA3AF),
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 15.sp,
                 )
             }
-            QuietButton("Cancelar", enabled = !vm.busy) { deleteOpen = false }
         }
     }
 
@@ -953,12 +1000,53 @@ fun AccountScreen(vm: AppViewModel) {
 
 @Composable
 private fun PlanBenefit(text: String) {
-    Text(
-        "• $text",
-        color = Color(0xFFD1D5DB),
-        fontSize = 12.sp,
-        lineHeight = 18.sp,
-    )
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Text(
+            "✓",
+            color = NoduqColors.cyan,
+            fontSize = 12.sp,
+            lineHeight = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text,
+            color = Color(0xFF9CA3AF),
+            fontSize = 12.sp,
+            lineHeight = 18.sp,
+        )
+    }
+}
+
+@Composable
+private fun AccountDangerButton(
+    text: String,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+) {
+    val red = Color(0xFFEF4444)
+    val label = Color(0xFFF87171)
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .alpha(if (enabled) 1f else 0.5f),
+        shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = red.copy(alpha = 0.05f),
+            contentColor = label,
+            disabledContainerColor = red.copy(alpha = 0.05f),
+            disabledContentColor = label,
+        ),
+        border = BorderStroke(1.dp, red.copy(alpha = 0.20f)),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Text(text, color = label, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+    }
 }
 
 @Composable
@@ -974,6 +1062,7 @@ private fun NoduqSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.(
                 .clip(RoundedCornerShape(16.dp))
                 .background(Color(0xFF0F171A))
                 .border(1.dp, NoduqColors.line, RoundedCornerShape(16.dp))
+                .verticalScroll(rememberScrollState())
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             content = content,
