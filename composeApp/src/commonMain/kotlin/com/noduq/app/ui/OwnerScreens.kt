@@ -74,6 +74,7 @@ import com.noduq.app.EmployeeDto
 import com.noduq.app.OwnerTab
 import com.noduq.app.PermissionState
 import com.noduq.app.Screen
+import com.noduq.app.clockLabel
 import com.noduq.app.longDateLabel
 import com.noduq.app.motionEnabled
 import com.noduq.app.needsAttention
@@ -1058,21 +1059,31 @@ private fun NoduqSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.(
 
 @Composable
 private fun PaymentHistoryAccountCard(vm: AppViewModel, history: com.noduq.app.HistoryStatusDto) {
+    val done = history.status == "done"
+    val finishedDay = longDateLabel(history.finishedAt)
+    val finishedTime = clockLabel(history.finishedAt)
     val subtitle = when (history.status) {
-        "running" -> if (history.total > 0) {
-            "Van ${history.processed} de ${history.total} correos."
-        } else {
-            "Buscando en el correo."
+        "running" -> "Sincronizando pagos... ${history.percent}%"
+        "done" -> buildString {
+            append("Sincronizado desde el 1 de enero de 2026.")
+            if (finishedDay.isNotBlank()) {
+                append(" Terminó el ")
+                append(finishedDay)
+                if (finishedTime.isNotBlank()) {
+                    append(" a las ")
+                    append(finishedTime)
+                }
+                append(".")
+            }
         }
-        "done" -> if (history.stored == 1) {
-            "Listo. Quedó guardado 1 pago."
-        } else {
-            "Listo. Quedaron guardados ${history.stored} pagos."
-        }
-        "deferred" -> "Lo dejaste para después. Sale del correo, una sola vez."
-        else -> "Pendiente. Revisa el correo del banco desde el 1 de enero de 2026."
+        "deferred" -> "Lo dejaste para después. Revisa el correo del banco desde el 1 de enero de 2026, de a pocos. Una sola vez."
+        else -> "Pendiente. Revisa el correo del banco desde el 1 de enero de 2026, de a pocos. Una sola vez."
     }
-    AccountCard("Histórico de pagos", subtitle) {
+    AccountCard(
+        title = "Histórico de pagos",
+        subtitle = subtitle,
+        badge = if (done) "Sincronizado" else null,
+    ) {
         when (history.status) {
             "running" -> {
                 LinearProgressIndicator(
@@ -1081,17 +1092,23 @@ private fun PaymentHistoryAccountCard(vm: AppViewModel, history: com.noduq.app.H
                     color = NoduqColors.cyan,
                     trackColor = NoduqColors.cyan.copy(alpha = 0.15f),
                 )
-                Text(
-                    "${history.percent}%",
-                    color = NoduqColors.cyan,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 14.sp,
-                )
-                vm.historyNote?.let {
-                    Text(it, color = Color(0xFFF87171), fontSize = 13.sp, lineHeight = 18.sp)
+                if (history.total > 0) {
+                    Text(
+                        "Van ${history.processed} de ${history.total} correos",
+                        color = NoduqColors.muted,
+                        fontSize = 13.sp,
+                    )
                 }
             }
-            "done" -> Unit
+            "done" -> {
+                if (history.stored > 0) {
+                    Text(
+                        if (history.stored == 1) "Quedó 1 pago en el listado." else "Quedaron ${history.stored} pagos en el listado.",
+                        color = NoduqColors.muted,
+                        fontSize = 14.sp,
+                    )
+                }
+            }
             else -> {
                 if (vm.workspace?.planActive() == true) {
                     PrimaryButton(
@@ -1117,6 +1134,7 @@ private fun PaymentHistoryAccountCard(vm: AppViewModel, history: com.noduq.app.H
 private fun AccountCard(
     title: String,
     subtitle: String? = null,
+    badge: String? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(
@@ -1128,7 +1146,27 @@ private fun AccountCard(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                title,
+                color = Color.White,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 18.sp,
+                modifier = Modifier.weight(1f),
+            )
+            if (badge != null) {
+                Text(
+                    "✓ $badge",
+                    color = NoduqColors.cyan,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 12.sp,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(NoduqColors.cyan.copy(alpha = 0.14f))
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                )
+            }
+        }
         subtitle?.let { Text(it, color = NoduqColors.muted, fontSize = 13.sp, lineHeight = 18.sp) }
         content()
     }

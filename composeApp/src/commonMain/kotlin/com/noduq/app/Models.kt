@@ -163,6 +163,7 @@ data class HistoryStatusDto(
     val processed: Int = 0,
     val stored: Int = 0,
     val percent: Int = 0,
+    val finishedAt: String? = null,
 )
 
 @Serializable

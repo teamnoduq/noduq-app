@@ -544,7 +544,7 @@ private fun HistoryProgressCard(history: com.noduq.app.HistoryStatusDto, note: S
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
-            "Histórico de pagos · ${history.percent}%",
+            "Sincronizando pagos... ${history.percent}%",
             color = NoduqColors.ink,
             fontWeight = FontWeight.Medium,
             fontSize = 14.sp,
