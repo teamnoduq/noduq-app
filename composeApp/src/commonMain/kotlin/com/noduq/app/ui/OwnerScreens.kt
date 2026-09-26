@@ -34,7 +34,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.TextButton
@@ -1063,7 +1062,11 @@ private fun PaymentHistoryAccountCard(vm: AppViewModel, history: com.noduq.app.H
     val finishedDay = longDateLabel(history.finishedAt)
     val finishedTime = clockLabel(history.finishedAt)
     val subtitle = when (history.status) {
-        "running" -> "Sincronizando pagos... ${history.percent}%"
+        "running" -> if (history.total > 0) {
+            "Guardando los pagos del correo."
+        } else {
+            "Buscando los correos del banco desde el 1 de enero de 2026."
+        }
         "done" -> buildString {
             append("Sincronizado desde el 1 de enero de 2026.")
             if (finishedDay.isNotBlank()) {
@@ -1085,21 +1088,7 @@ private fun PaymentHistoryAccountCard(vm: AppViewModel, history: com.noduq.app.H
         badge = if (done) "Sincronizado" else null,
     ) {
         when (history.status) {
-            "running" -> {
-                LinearProgressIndicator(
-                    progress = { history.percent.coerceIn(0, 100) / 100f },
-                    modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
-                    color = NoduqColors.cyan,
-                    trackColor = NoduqColors.cyan.copy(alpha = 0.15f),
-                )
-                if (history.total > 0) {
-                    Text(
-                        "Van ${history.processed} de ${history.total} correos",
-                        color = NoduqColors.muted,
-                        fontSize = 13.sp,
-                    )
-                }
-            }
+            "running" -> HistorySyncProgress(history, vm.historyNote, vm::dismissHistoryNote)
             "done" -> {
                 if (history.stored > 0) {
                     Text(
@@ -1122,9 +1111,7 @@ private fun PaymentHistoryAccountCard(vm: AppViewModel, history: com.noduq.app.H
                         fontSize = 14.sp,
                     )
                 }
-                vm.historyNote?.let {
-                    Text(it, color = Color(0xFFF87171), fontSize = 13.sp, lineHeight = 18.sp)
-                }
+                vm.historyNote?.let { HistoryNoteRow(it, vm::dismissHistoryNote) }
             }
         }
     }

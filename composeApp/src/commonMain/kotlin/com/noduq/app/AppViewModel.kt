@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -164,6 +165,13 @@ class AppViewModel(
         }
     }
 
+    fun dismissHistoryNote() {
+        historyNote = null
+        if (paymentHistory?.status == "running" && historyJob?.isActive != true) {
+            pumpHistory(startFresh = false)
+        }
+    }
+
     private fun pumpHistory(startFresh: Boolean) {
         if (historyJob?.isActive == true) return
         historyJob = viewModelScope.launch {
@@ -174,14 +182,31 @@ class AppViewModel(
                     paymentHistory ?: asOwner { api.paymentHistory(it) }
                 }
                 paymentHistory = status
+                historyNote = null
                 if (status.status != "running") return@launch
+                var misses = 0
                 while (true) {
-                    status = asOwner { api.stepPaymentHistory(it) }
-                    paymentHistory = status
-                    if (status.status == "done") break
-                    delay(450)
+                    try {
+                        status = asOwner { api.stepPaymentHistory(it) }
+                        paymentHistory = status
+                        historyNote = null
+                        misses = 0
+                        if (status.status == "done") break
+                        delay(350)
+                    } catch (cause: CancellationException) {
+                        throw cause
+                    } catch (cause: Exception) {
+                        misses++
+                        if (misses >= 4) {
+                            historyNote = cause.message ?: "No se pudo seguir con el histórico."
+                            return@launch
+                        }
+                        delay(1_500L * misses)
+                    }
                 }
                 loadPayments(quiet = true)
+            } catch (cause: CancellationException) {
+                throw cause
             } catch (cause: Exception) {
                 historyNote = cause.message ?: "No se pudo seguir con el histórico."
             }

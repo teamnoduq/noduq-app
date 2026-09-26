@@ -5,8 +5,11 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -65,6 +68,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.noduq.app.HistoryStatusDto
 import com.noduq.app.OwnerTab
 import com.noduq.app.AppViewModel
 import com.noduq.app.PaymentNoticeDto
@@ -190,7 +194,7 @@ fun PaymentsScreen(vm: AppViewModel) {
             val showHistoryProgress = history?.status == "running"
             if (history?.status == "running") {
                 Spacer(Modifier.height(16.dp))
-                HistoryProgressCard(history, vm.historyNote)
+                HistoryProgressCard(history, vm.historyNote, vm::dismissHistoryNote)
             } else if (showHistoryOffer) {
                 Spacer(Modifier.height(16.dp))
                     HistoryOfferCard(
@@ -198,6 +202,7 @@ fun PaymentsScreen(vm: AppViewModel) {
                         note = vm.historyNote,
                         onStart = vm::startPaymentHistory,
                         onSkip = vm::deferPaymentHistory,
+                        onDismissNote = vm::dismissHistoryNote,
                     )
             }
             vm.noticesError?.let { message ->
@@ -498,7 +503,13 @@ private fun PaymentSkeletonCard() {
 }
 
 @Composable
-private fun HistoryOfferCard(connected: Boolean, note: String?, onStart: () -> Unit, onSkip: () -> Unit) {
+private fun HistoryOfferCard(
+    connected: Boolean,
+    note: String?,
+    onStart: () -> Unit,
+    onSkip: () -> Unit,
+    onDismissNote: () -> Unit,
+) {
     Column(
         Modifier
             .fillMaxWidth()
@@ -520,9 +531,7 @@ private fun HistoryOfferCard(connected: Boolean, note: String?, onStart: () -> U
             fontSize = 14.sp,
             lineHeight = 20.sp,
         )
-        note?.let {
-            Text(it, color = Color(0xFFF87171), fontSize = 13.sp, lineHeight = 18.sp)
-        }
+        note?.let { HistoryNoteRow(it, onDismissNote) }
         PrimaryButton(if (connected) "Empezar" else "Conectar correo", onClick = onStart)
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             TextButton(onClick = onSkip, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
@@ -533,7 +542,7 @@ private fun HistoryOfferCard(connected: Boolean, note: String?, onStart: () -> U
 }
 
 @Composable
-private fun HistoryProgressCard(history: com.noduq.app.HistoryStatusDto, note: String?) {
+private fun HistoryProgressCard(history: HistoryStatusDto, note: String?, onDismissNote: () -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
@@ -543,25 +552,71 @@ private fun HistoryProgressCard(history: com.noduq.app.HistoryStatusDto, note: S
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(
-            "Sincronizando pagos... ${history.percent}%",
-            color = NoduqColors.ink,
-            fontWeight = FontWeight.Medium,
-            fontSize = 14.sp,
-        )
+        HistorySyncProgress(history, note, onDismissNote)
+    }
+}
+
+@Composable
+internal fun HistorySyncProgress(history: HistoryStatusDto, note: String?, onDismissNote: () -> Unit) {
+    val listing = history.total <= 0
+    val motion = if (motionEnabled()) tween<Float>(520, easing = NoduqMotion.easeOut) else snap()
+    val countMotion = if (motionEnabled()) tween<Int>(520, easing = NoduqMotion.easeOut) else snap()
+    val shown by animateIntAsState(history.percent.coerceIn(0, 100), countMotion, label = "history-percent")
+    val walked by animateIntAsState(history.processed.coerceAtLeast(0), countMotion, label = "history-count")
+    val bar by animateFloatAsState(
+        history.percent.coerceIn(0, 100) / 100f,
+        motion,
+        label = "history-bar",
+    )
+    Text(
+        if (listing) "Buscando en el correo…" else "Guardando pagos... $shown%",
+        color = NoduqColors.ink,
+        fontWeight = FontWeight.Medium,
+        fontSize = 14.sp,
+    )
+    if (listing) {
         LinearProgressIndicator(
-            progress = { history.percent.coerceIn(0, 100) / 100f },
             modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
             color = NoduqColors.cyan,
             trackColor = NoduqColors.cyan.copy(alpha = 0.15f),
         )
-        Text(
-            if (history.total > 0) "Van ${history.processed} de ${history.total} correos" else "Buscando en el correo…",
-            color = NoduqColors.muted,
-            fontSize = 13.sp,
+    } else {
+        LinearProgressIndicator(
+            progress = { bar },
+            modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
+            color = NoduqColors.cyan,
+            trackColor = NoduqColors.cyan.copy(alpha = 0.15f),
         )
-        note?.let {
-            Text(it, color = Color(0xFFF87171), fontSize = 13.sp, lineHeight = 18.sp)
+    }
+    Text(
+        if (listing) {
+            if (walked > 0) "Van $walked correos" else "Revisando el correo del banco…"
+        } else {
+            "Van $walked de ${history.total} correos"
+        },
+        color = NoduqColors.muted,
+        fontSize = 13.sp,
+    )
+    note?.let { HistoryNoteRow(it, onDismissNote) }
+}
+
+@Composable
+internal fun HistoryNoteRow(note: String, onDismiss: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            note,
+            color = Color(0xFFF87171),
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = onDismiss, modifier = Modifier.size(36.dp)) {
+            Icon(
+                Phosphor.X,
+                contentDescription = "Quitar aviso",
+                tint = NoduqColors.muted,
+                modifier = Modifier.size(16.dp),
+            )
         }
     }
 }
