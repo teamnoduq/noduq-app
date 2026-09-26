@@ -65,7 +65,7 @@ class NoduqApi(
 
     suspend fun listPayments(
         token: String,
-        limit: Int = 80,
+        limit: Int = 5000,
         q: String? = null,
         since: String? = null,
         until: String? = null,
