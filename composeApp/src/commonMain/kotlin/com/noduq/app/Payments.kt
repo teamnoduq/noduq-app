@@ -133,9 +133,16 @@ fun PaymentNoticeDto.whoPaid(): String = when {
 
 fun copLabel(amount: Double): String {
     val n = kotlin.math.round(amount).toLong()
-    val grouped = n.toString().reversed().chunked(3).joinToString(".").reversed()
-    return "$$grouped"
+    return "$${groupedInt(n)}"
 }
+
+fun groupedInt(value: Long): String =
+    value.toString().reversed().chunked(3).joinToString(".").reversed()
+
+fun groupedInt(value: Int): String = groupedInt(value.toLong())
+
+fun paymentCountLabel(count: Int): String =
+    if (count == 1) "1 pago" else "${groupedInt(count)} pagos"
 
 fun PermissionState.needsAttention(): Boolean =
     this != PermissionState.Granted && this != PermissionState.NotNeeded

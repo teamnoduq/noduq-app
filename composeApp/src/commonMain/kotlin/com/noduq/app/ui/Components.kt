@@ -66,6 +66,7 @@ import androidx.compose.ui.layout.boundsInParent
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -442,7 +443,7 @@ fun SlidingFilterChips(
             launch { pillW.animateTo(width, tween(NoduqMotion.selectMs, easing = NoduqMotion.easeOut)) }
         }
     }
-    Box(modifier) {
+    Box(modifier.fillMaxWidth()) {
         if (pillW.value > 0f) {
             Box(
                 Modifier
@@ -506,6 +507,7 @@ private fun FilterChipLabel(
                 onClick = onClick,
             )
             .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -513,6 +515,9 @@ private fun FilterChipLabel(
             color = color,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
             fontSize = 13.sp,
+            maxLines = 1,
+            softWrap = false,
+            textAlign = TextAlign.Center,
         )
     }
 }
@@ -881,6 +886,7 @@ fun CountingCop(
         color = NoduqColors.cyan,
         fontWeight = FontWeight.SemiBold,
         fontSize = fontSize,
+        lineHeight = 32.sp,
         letterSpacing = (-0.8).sp,
     )
 }

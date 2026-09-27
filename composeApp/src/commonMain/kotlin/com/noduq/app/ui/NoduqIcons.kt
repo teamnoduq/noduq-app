@@ -227,6 +227,38 @@ object NoduqIcons {
             lineTo(2f, 7f)
         }
     }
+
+    val Calendar: ImageVector by lazy {
+        strokeIcon("noduq.calendar") {
+            moveTo(8f, 2f)
+            verticalLineTo(6f)
+            moveTo(16f, 2f)
+            verticalLineTo(6f)
+            moveTo(3f, 10f)
+            horizontalLineTo(21f)
+            moveTo(5f, 4f)
+            horizontalLineTo(19f)
+            arcToRelative(2f, 2f, 0f, false, true, 2f, 2f)
+            verticalLineTo(20f)
+            arcToRelative(2f, 2f, 0f, false, true, -2f, 2f)
+            horizontalLineTo(5f)
+            arcToRelative(2f, 2f, 0f, false, true, -2f, -2f)
+            verticalLineTo(6f)
+            arcToRelative(2f, 2f, 0f, false, true, 2f, -2f)
+            close()
+        }
+    }
+
+    val Clock: ImageVector by lazy {
+        strokeIcon("noduq.clock") {
+            moveTo(12f, 2f)
+            arcTo(10f, 10f, 0f, true, true, 12f, 22f)
+            arcTo(10f, 10f, 0f, true, true, 12f, 2f)
+            moveTo(12f, 6f)
+            verticalLineTo(12f)
+            lineTo(16f, 14f)
+        }
+    }
 }
 
 private fun strokeIcon(

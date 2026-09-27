@@ -5,6 +5,7 @@ import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.plugins.websocket.webSocket
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -15,6 +16,8 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
 import io.ktor.http.encodeURLParameter
 import io.ktor.http.isSuccess
+import io.ktor.websocket.Frame
+import io.ktor.websocket.readText
 import kotlinx.serialization.json.Json
 
 private val json = Json {
@@ -27,6 +30,7 @@ private val json = Json {
 class NoduqApi(
     private val client: HttpClient,
     private val config: AppConfig,
+    private val sockets: HttpClient = createWebSocketClient(),
 ) {
     suspend fun getMe(token: String): WorkspaceDto =
         request("GET", "/v1/me", token)
@@ -65,16 +69,22 @@ class NoduqApi(
 
     suspend fun listPayments(
         token: String,
-        limit: Int = 5000,
+        limit: Int = 40,
         q: String? = null,
         since: String? = null,
         until: String? = null,
+        before: String? = null,
+        beforeId: String? = null,
     ): PaymentFeedDto {
         val query = buildList {
             add("limit=$limit")
             if (!q.isNullOrBlank()) add("q=${q.trim().encodeURLParameter()}")
             if (!since.isNullOrBlank()) add("since=${since.encodeURLParameter()}")
             if (!until.isNullOrBlank()) add("until=${until.encodeURLParameter()}")
+            if (!before.isNullOrBlank() && !beforeId.isNullOrBlank()) {
+                add("before=${before.encodeURLParameter()}")
+                add("beforeId=${beforeId.encodeURLParameter()}")
+            }
         }.joinToString("&")
         return request("GET", "/v1/payments?$query", token)
     }
@@ -90,6 +100,25 @@ class NoduqApi(
 
     suspend fun startPaymentHistory(token: String): HistoryStatusDto =
         request("POST", "/v1/payments/history/start", token)
+
+    /**
+     * Stays open while the import runs. [onStatus] returns true when the phone should hang up,
+     * which is when the import is no longer running.
+     */
+    suspend fun watchPaymentHistory(token: String, onStatus: (HistoryStatusDto) -> Boolean) {
+        val url = config.apiBaseUrl.trimEnd('/')
+            .replaceFirst("https://", "wss://")
+            .replaceFirst("http://", "ws://") + "/v1/payments/history/live"
+        sockets.webSocket(url, request = {
+            header(HttpHeaders.Authorization, "Bearer $token")
+        }) {
+            for (frame in incoming) {
+                if (frame !is Frame.Text) continue
+                val status = json.decodeFromString(HistoryStatusDto.serializer(), frame.readText())
+                if (onStatus(status)) return@webSocket
+            }
+        }
+    }
 
     suspend fun stepPaymentHistory(token: String): HistoryStatusDto =
         request("POST", "/v1/payments/history/batches", token)

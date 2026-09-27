@@ -64,15 +64,31 @@ class AppViewModel(
         private set
     var payQuery by mutableStateOf("")
         private set
-    var paySince by mutableStateOf<String?>(null)
+    var paySince by mutableStateOf<String?>(localDayStartIso(0))
         private set
-    var payUntil by mutableStateOf<String?>(null)
+    var payUntil by mutableStateOf<String?>(localDayEndExclusiveIso(0))
         private set
-    var payRange by mutableStateOf("todos")
+    var payRange by mutableStateOf("hoy")
+        private set
+    var payMonthLabel by mutableStateOf(localMonthName())
+        private set
+    var payYearLabel by mutableStateOf(calendarYear(null).toString())
+        private set
+    var payMonthYear by mutableStateOf(calendarYear(null))
+        private set
+    var payCount by mutableStateOf(0)
+        private set
+    var payTotal by mutableStateOf(0.0)
+        private set
+    var payHasMore by mutableStateOf(false)
+        private set
+    var payLoadingMore by mutableStateOf(false)
         private set
     var onboardShop by mutableStateOf(tokens.onboardShop())
     var onboardName by mutableStateOf(tokens.onboardName())
     private var paySearchJob: Job? = null
+    private var paymentsJob: Job? = null
+    private var payMoreJob: Job? = null
 
     /** The aviso that just landed, so the screen can shout about it once. */
     var freshNotice by mutableStateOf<PaymentNoticeDto?>(null)
@@ -184,27 +200,40 @@ class AppViewModel(
                 paymentHistory = status
                 historyNote = null
                 if (status.status != "running") return@launch
-                var misses = 0
+                var pause = 1_000L
                 while (true) {
                     try {
-                        status = asOwner { api.stepPaymentHistory(it) }
-                        paymentHistory = status
-                        historyNote = null
-                        misses = 0
-                        if (status.status == "done") break
-                        delay(350)
+                        var finished = false
+                        asOwner { token ->
+                            api.watchPaymentHistory(token) { next ->
+                                paymentHistory = next
+                                historyNote = null
+                                finished = next.status == "done"
+                                next.status != "running"
+                            }
+                        }
+                        if (finished || paymentHistory?.status == "done") {
+                            loadPayments(quiet = true)
+                            break
+                        }
+                        delay(pause)
+                        pause = (pause * 2).coerceAtMost(8_000L)
                     } catch (cause: CancellationException) {
                         throw cause
-                    } catch (cause: Exception) {
-                        misses++
-                        if (misses >= 4) {
-                            historyNote = cause.message ?: "No se pudo seguir con el histórico."
-                            return@launch
+                    } catch (_: Exception) {
+                        delay(pause)
+                        pause = (pause * 2).coerceAtMost(8_000L)
+                        val latest = runCatching { asOwner { api.paymentHistory(it) } }.getOrNull()
+                        if (latest != null) {
+                            paymentHistory = latest
+                            if (latest.status == "done") {
+                                loadPayments(quiet = true)
+                                break
+                            }
+                            if (latest.status != "running") break
                         }
-                        delay(1_500L * misses)
                     }
                 }
-                loadPayments(quiet = true)
             } catch (cause: CancellationException) {
                 throw cause
             } catch (cause: Exception) {
@@ -365,9 +394,12 @@ class AppViewModel(
         val owner = tokens.ownerAccessToken()
         val employee = tokens.employeeToken()
         if (owner == null && employee == null) return
-        viewModelScope.launch {
+        payMoreJob?.cancel()
+        paymentsJob?.cancel()
+        paymentsJob = viewModelScope.launch {
             if (!quiet) noticesLoading = true
             noticesError = null
+            payLoadingMore = false
             try {
                 val feed = if (owner != null) {
                     asOwner {
@@ -386,10 +418,48 @@ class AppViewModel(
                     freshNotice = newest
                 }
                 notices = feed.notices
+                payCount = if (owner != null) feed.count else feed.notices.size
+                payTotal = if (owner != null) feed.totalAmount else feed.notices.mapNotNull { it.amount }.sum()
+                payHasMore = owner != null && feed.notices.size < feed.count
+            } catch (cause: CancellationException) {
+                throw cause
             } catch (cause: Exception) {
                 noticesError = cause.message ?: "No se pudieron cargar los avisos."
             } finally {
                 noticesLoading = false
+            }
+        }
+    }
+
+    fun loadMorePayments() {
+        val owner = tokens.ownerAccessToken() ?: return
+        val last = notices.lastOrNull() ?: return
+        if (!payHasMore || payLoadingMore || noticesLoading || payMoreJob?.isActive == true) return
+        payMoreJob = viewModelScope.launch {
+            payLoadingMore = true
+            try {
+                val feed = asOwner {
+                    api.listPayments(
+                        it,
+                        q = payQuery.ifBlank { null },
+                        since = paySince,
+                        until = payUntil,
+                        before = last.momentIso(),
+                        beforeId = last.id,
+                    )
+                }
+                val known = notices.map { it.id }.toSet()
+                val extra = feed.notices.filter { it.id !in known }
+                notices = notices + extra
+                payCount = feed.count
+                payTotal = feed.totalAmount
+                payHasMore = extra.isNotEmpty() && notices.size < feed.count
+            } catch (cause: CancellationException) {
+                throw cause
+            } catch (cause: Exception) {
+                noticesError = cause.message ?: "No se pudieron cargar más avisos."
+            } finally {
+                payLoadingMore = false
             }
         }
     }
@@ -411,7 +481,27 @@ class AppViewModel(
         payRange = range
         paySince = since
         payUntil = until
+        payCount = 0
+        payTotal = 0.0
+        payHasMore = false
+        notices = emptyList()
         loadPayments()
+    }
+
+    fun chooseMonth(name: String, since: String, until: String) {
+        payMonthLabel = name
+        applyPayRange("mes", since, until)
+    }
+
+    fun chooseYear(label: String, since: String, until: String) {
+        payYearLabel = label
+        val year = label.toIntOrNull() ?: calendarYear(null)
+        payMonthYear = year
+        val months = monthWindows(year)
+        if (months.none { it.name == payMonthLabel }) {
+            payMonthLabel = months.firstOrNull()?.name ?: localMonthName()
+        }
+        applyPayRange("anio", since, until)
     }
 
     fun searchPayments() {
@@ -1114,9 +1204,18 @@ class AppViewModel(
         noticesError = null
         paySearchJob?.cancel()
         payQuery = ""
-        paySince = null
-        payUntil = null
-        payRange = "todos"
+        paySince = localDayStartIso(0)
+        payUntil = localDayEndExclusiveIso(0)
+        payRange = "hoy"
+        payMonthLabel = localMonthName()
+        payYearLabel = calendarYear(null).toString()
+        payMonthYear = calendarYear(null)
+        payCount = 0
+        payTotal = 0.0
+        payHasMore = false
+        payLoadingMore = false
+        paymentsJob?.cancel()
+        payMoreJob?.cancel()
         gmail = null
         paymentHistory = null
         historyNote = null

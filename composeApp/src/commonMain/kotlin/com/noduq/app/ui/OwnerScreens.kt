@@ -74,7 +74,9 @@ import com.noduq.app.OwnerTab
 import com.noduq.app.PermissionState
 import com.noduq.app.Screen
 import com.noduq.app.clockLabel
+import com.noduq.app.groupedInt
 import com.noduq.app.longDateLabel
+import com.noduq.app.shortDayLabel
 import com.noduq.app.motionEnabled
 import com.noduq.app.needsAttention
 import com.noduq.app.planCancelling
@@ -1059,28 +1061,15 @@ private fun NoduqSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.(
 @Composable
 private fun PaymentHistoryAccountCard(vm: AppViewModel, history: com.noduq.app.HistoryStatusDto) {
     val done = history.status == "done"
-    val finishedDay = longDateLabel(history.finishedAt)
-    val finishedTime = clockLabel(history.finishedAt)
     val subtitle = when (history.status) {
         "running" -> if (history.total > 0) {
             "Guardando los pagos del correo."
         } else {
-            "Buscando los correos del banco desde el 1 de enero de 2026."
+            "Buscando en todo el correo del banco."
         }
-        "done" -> buildString {
-            append("Sincronizado desde el 1 de enero de 2026.")
-            if (finishedDay.isNotBlank()) {
-                append(" Terminó el ")
-                append(finishedDay)
-                if (finishedTime.isNotBlank()) {
-                    append(" a las ")
-                    append(finishedTime)
-                }
-                append(".")
-            }
-        }
-        "deferred" -> "Lo dejaste para después. Revisa el correo del banco desde el 1 de enero de 2026, de a pocos. Una sola vez."
-        else -> "Pendiente. Revisa el correo del banco desde el 1 de enero de 2026, de a pocos. Una sola vez."
+        "done" -> null
+        "deferred" -> "Lo dejaste para después. Revisa todo el correo del banco, de a pocos. Una sola vez."
+        else -> "Pendiente. Revisa todo el correo del banco, de a pocos. Una sola vez."
     }
     AccountCard(
         title = "Histórico de pagos",
@@ -1089,15 +1078,7 @@ private fun PaymentHistoryAccountCard(vm: AppViewModel, history: com.noduq.app.H
     ) {
         when (history.status) {
             "running" -> HistorySyncProgress(history, vm.historyNote, vm::dismissHistoryNote)
-            "done" -> {
-                if (history.stored > 0) {
-                    Text(
-                        if (history.stored == 1) "Quedó 1 pago en el listado." else "Quedaron ${history.stored} pagos en el listado.",
-                        color = NoduqColors.muted,
-                        fontSize = 14.sp,
-                    )
-                }
-            }
+            "done" -> SyncedHistoryBody(history)
             else -> {
                 if (vm.workspace?.planActive() == true) {
                     PrimaryButton(
@@ -1114,6 +1095,47 @@ private fun PaymentHistoryAccountCard(vm: AppViewModel, history: com.noduq.app.H
                 vm.historyNote?.let { HistoryNoteRow(it, vm::dismissHistoryNote) }
             }
         }
+    }
+}
+
+@Composable
+private fun SyncedHistoryBody(history: com.noduq.app.HistoryStatusDto) {
+    val listed = if (history.stored == 1) {
+        "1 pago listado"
+    } else {
+        "${groupedInt(history.stored)} pagos listados"
+    }
+    val since = shortDayLabel(history.earliestAt)
+    val finishedDay = longDateLabel(history.finishedAt)
+    val finishedTime = clockLabel(history.finishedAt)
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        HistoryMetric(NoduqIcons.Check, listed)
+        if (since.isNotBlank()) {
+            HistoryMetric(NoduqIcons.Calendar, "Desde $since")
+        }
+        if (finishedDay.isNotBlank()) {
+            val stamp = if (finishedTime.isBlank()) finishedDay else "$finishedDay, $finishedTime"
+            HistoryMetric(NoduqIcons.Clock, stamp)
+        }
+    }
+}
+
+@Composable
+private fun HistoryMetric(icon: ImageVector, label: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Box(
+            Modifier
+                .size(28.dp)
+                .clip(CircleShape)
+                .background(NoduqColors.cyan.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, contentDescription = null, tint = NoduqColors.cyan, modifier = Modifier.size(15.dp))
+        }
+        Text(label, color = Color.White, fontWeight = FontWeight.Medium, fontSize = 14.sp)
     }
 }
 

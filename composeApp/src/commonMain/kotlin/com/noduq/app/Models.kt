@@ -114,7 +114,11 @@ data class PaymentNoticeDto(
 )
 
 @Serializable
-data class PaymentFeedDto(val notices: List<PaymentNoticeDto> = emptyList())
+data class PaymentFeedDto(
+    val notices: List<PaymentNoticeDto> = emptyList(),
+    val count: Int = 0,
+    val totalAmount: Double = 0.0,
+)
 
 @Serializable
 data class RegisterDeviceRequest(
@@ -147,7 +151,7 @@ data class SmsIngestRequest(
     val sentAt: String? = null,
 )
 
-/** [outcome] is `stored`, `duplicate`, `ignored_sender` or `ignored_other_account`. */
+/** [outcome] is `stored`, `duplicate`, `ignored_sender`, `ignored_not_receipt` or `ignored_other_shop`. */
 @Serializable
 data class SmsIngestResponseDto(
     val outcome: String,
@@ -164,6 +168,7 @@ data class HistoryStatusDto(
     val stored: Int = 0,
     val percent: Int = 0,
     val finishedAt: String? = null,
+    val earliestAt: String? = null,
 )
 
 @Serializable

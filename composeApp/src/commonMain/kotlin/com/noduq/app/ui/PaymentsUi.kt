@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -57,6 +58,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -79,8 +81,13 @@ import com.noduq.app.dayStartIsoFromUtcMillis
 import com.noduq.app.filterDateLabel
 import com.noduq.app.localDayEndExclusiveIso
 import com.noduq.app.localDayStartIso
-import com.noduq.app.localWeekStartIso
+import com.noduq.app.monthHeading
+import com.noduq.app.monthWindows
+import com.noduq.app.yearHeading
+import com.noduq.app.yearWindows
 import com.noduq.app.motionEnabled
+import com.noduq.app.groupedInt
+import com.noduq.app.paymentCountLabel
 import com.noduq.app.momentIso
 import com.noduq.app.nextDayStartIsoFromUtcMillis
 import com.noduq.app.planActive
@@ -99,15 +106,21 @@ fun PaymentsScreen(vm: AppViewModel) {
     }
 
     var sheetOpen by rememberSaveable { mutableStateOf(false) }
+    var monthSheet by rememberSaveable { mutableStateOf(false) }
+    var yearSheet by rememberSaveable { mutableStateOf(false) }
     var picking by rememberSaveable { mutableStateOf<String?>(null) }
     var draftSince by rememberSaveable { mutableStateOf(vm.paySince) }
     var draftUntil by rememberSaveable { mutableStateOf(vm.payUntil) }
     val picker = rememberDatePickerState()
 
-    val viewTotal = vm.notices.mapNotNull { it.amount }.sum()
+    val viewTotal = vm.payTotal
+    val periodLine = when (vm.payRange) {
+        "mes" -> monthHeading(vm.paySince)
+        "anio" -> yearHeading(vm.paySince)
+        else -> null
+    }
     val heading = when (vm.payRange) {
         "ayer" -> "Pagos de ayer"
-        "semana" -> "Pagos de la semana"
         "hoy" -> "Pagos de hoy"
         else -> "Pagos"
     }
@@ -119,20 +132,71 @@ fun PaymentsScreen(vm: AppViewModel) {
     Column(Modifier.fillMaxSize()) {
         Column(Modifier.padding(horizontal = 22.dp)) {
             Spacer(Modifier.height(24.dp))
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Bottom,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text(
-                    heading,
-                    color = Color.White,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 28.sp,
-                    letterSpacing = (-0.7).sp,
-                    modifier = Modifier.weight(1f),
-                )
-                CountingCop(amount = viewTotal)
+            if (periodLine != null) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text(
+                        "Pagos de",
+                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 28.sp,
+                        lineHeight = 32.sp,
+                        letterSpacing = (-0.7).sp,
+                        modifier = Modifier.weight(1f),
+                    )
+                    CountingCop(amount = viewTotal, fontSize = 28.sp)
+                }
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 2.dp),
+                    verticalAlignment = Alignment.Top,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text(
+                        periodLine,
+                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 22.sp,
+                        lineHeight = 26.sp,
+                        letterSpacing = (-0.4).sp,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        paymentCountLabel(vm.payCount),
+                        color = NoduqColors.muted,
+                        fontSize = 12.sp,
+                        lineHeight = 14.sp,
+                        textAlign = TextAlign.End,
+                    )
+                }
+            } else {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text(
+                        heading,
+                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 28.sp,
+                        lineHeight = 32.sp,
+                        letterSpacing = (-0.7).sp,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Column(horizontalAlignment = Alignment.End) {
+                        CountingCop(amount = viewTotal, fontSize = 28.sp)
+                        Text(
+                            paymentCountLabel(vm.payCount),
+                            color = NoduqColors.muted,
+                            fontSize = 12.sp,
+                            lineHeight = 14.sp,
+                            textAlign = TextAlign.End,
+                        )
+                    }
+                }
             }
             Spacer(Modifier.height(16.dp))
             OutlinedTextField(
@@ -164,7 +228,8 @@ fun PaymentsScreen(vm: AppViewModel) {
                 options = listOf(
                     "hoy" to "Hoy",
                     "ayer" to "Ayer",
-                    "semana" to "Semana",
+                    "mes" to vm.payMonthLabel,
+                    "anio" to vm.payYearLabel,
                     "todos" to "Todos",
                 ),
                 selected = vm.payRange,
@@ -172,7 +237,8 @@ fun PaymentsScreen(vm: AppViewModel) {
                     when (id) {
                         "hoy" -> vm.applyPayRange("hoy", localDayStartIso(0), localDayEndExclusiveIso(0))
                         "ayer" -> vm.applyPayRange("ayer", localDayStartIso(1), localDayEndExclusiveIso(1))
-                        "semana" -> vm.applyPayRange("semana", localWeekStartIso(), localDayEndExclusiveIso(0))
+                        "mes" -> monthSheet = true
+                        "anio" -> yearSheet = true
                         else -> vm.applyPayRange("todos", null, null)
                     }
                 },
@@ -263,28 +329,113 @@ fun PaymentsScreen(vm: AppViewModel) {
                         onSkipMail = vm::dismissMailPrompt,
                     )
                 }
-                else -> LazyColumn(
-                    Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 22.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    grouped.forEach { (day, notices) ->
-                        item(key = "day-$day") {
-                            Text(
-                                day,
-                                color = NoduqColors.muted,
-                                fontWeight = FontWeight.Medium,
-                                fontSize = 13.sp,
-                                modifier = Modifier.padding(top = 8.dp),
-                            )
-                        }
-                        items(notices, key = { it.id }) { notice ->
-                            NoticeRow(notice)
+                else -> {
+                    val listState = rememberLazyListState()
+                    LaunchedEffect(vm.payRange, vm.paySince) {
+                        listState.scrollToItem(0)
+                    }
+                    LaunchedEffect(listState, vm.notices.size, vm.payHasMore) {
+                        snapshotFlow {
+                            listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
+                        }.collect { last ->
+                            val total = listState.layoutInfo.totalItemsCount
+                            if (last != null && total > 0 && last >= total - 4) {
+                                vm.loadMorePayments()
+                            }
                         }
                     }
-                    item { Spacer(Modifier.height(16.dp)) }
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 22.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        if (vm.workspace?.planActive() != true) {
+                            item(key = "plan-prompt") {
+                                PlanPrompt(
+                                    modifier = Modifier.padding(top = 36.dp),
+                                    smsReady = !vm.needsSmsSetup(),
+                                    onActivate = {
+                                        vm.go(Screen.OwnerHome(OwnerTab.Cuenta))
+                                        vm.buyPlan()
+                                    },
+                                )
+                            }
+                        }
+                        grouped.forEach { (day, notices) ->
+                            item(key = "day-$day") {
+                                Text(
+                                    day,
+                                    color = NoduqColors.muted,
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.padding(top = 8.dp),
+                                )
+                            }
+                            items(notices, key = { it.id }) { notice ->
+                                NoticeRow(notice)
+                            }
+                        }
+                        if (vm.payLoadingMore) {
+                            item(key = "more") {
+                                Text(
+                                    "Cargando más pagos…",
+                                    color = NoduqColors.muted,
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.padding(vertical = 8.dp),
+                                )
+                            }
+                        }
+                        item { Spacer(Modifier.height(16.dp)) }
+                    }
                 }
+            }
+        }
+    }
+
+    if (monthSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { monthSheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = NoduqColors.raised,
+            contentColor = NoduqColors.ink,
+        ) {
+            Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp)) {
+                Text("Mes", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 22.sp)
+                Spacer(Modifier.height(8.dp))
+                ChoiceList(
+                    items = monthWindows(vm.payMonthYear).asReversed().map { month ->
+                        month.name to {
+                            monthSheet = false
+                            vm.chooseMonth(month.name, month.since, month.untilExclusive)
+                        }
+                    },
+                    chosen = vm.payMonthLabel,
+                )
+            }
+        }
+    }
+
+    if (yearSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { yearSheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = NoduqColors.raised,
+            contentColor = NoduqColors.ink,
+        ) {
+            Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp)) {
+                Text("Año", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 22.sp)
+                Spacer(Modifier.height(8.dp))
+                ChoiceList(
+                    items = yearWindows(vm.paymentHistory?.earliestAt).asReversed().map { year ->
+                        year.label to {
+                            yearSheet = false
+                            vm.chooseYear(year.label, year.since, year.untilExclusive)
+                        }
+                    },
+                    chosen = vm.payYearLabel,
+                )
             }
         }
     }
@@ -526,7 +677,7 @@ private fun HistoryOfferCard(
             fontSize = 16.sp,
         )
         Text(
-            "Revisa el correo del banco desde el 1 de enero de 2026, de a pocos, y se queda solo con los pagos por QR. Una sola vez.",
+            "Revisa todo el correo del banco, de a pocos, y se queda solo con los pagos por QR. Una sola vez.",
             color = NoduqColors.muted,
             fontSize = 14.sp,
             lineHeight = 20.sp,
@@ -590,9 +741,9 @@ internal fun HistorySyncProgress(history: HistoryStatusDto, note: String?, onDis
     }
     Text(
         if (listing) {
-            if (walked > 0) "Van $walked correos" else "Revisando el correo del banco…"
+            if (walked > 0) "Procesando ${groupedInt(walked)} pagos" else "Revisando el correo del banco…"
         } else {
-            "Van $walked de ${history.total} correos"
+            "Procesando ${groupedInt(walked)} de ${groupedInt(history.total)} pagos"
         },
         color = NoduqColors.muted,
         fontSize = 13.sp,
@@ -663,6 +814,42 @@ private fun NotificationListenBanner(onActivate: () -> Unit, onDismiss: () -> Un
 }
 
 @Composable
+private fun ChoiceList(
+    items: List<Pair<String, () -> Unit>>,
+    chosen: String,
+) {
+    Column {
+        items.forEach { (label, onPick) ->
+            val selected = label == chosen
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable(onClick = onPick)
+                    .padding(horizontal = 4.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    label,
+                    color = if (selected) Color.White else NoduqColors.ink,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                    fontSize = 16.sp,
+                    modifier = Modifier.weight(1f),
+                )
+                if (selected) {
+                    Icon(
+                        NoduqIcons.Check,
+                        contentDescription = null,
+                        tint = NoduqColors.cyan,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun EmptyPayments(
     todayish: Boolean,
     planActive: Boolean,
@@ -692,20 +879,30 @@ private fun EmptyPayments(
             skip = "Omitir por ahora",
             onSkip = onSkipMail,
         )
-        !planActive -> PaymentsEmptyCluster(
-            icon = Phosphor.Receipt,
-            iconTint = NoduqColors.muted,
-            title = "Validación automática inactiva",
-            body = if (!smsReady) {
-                "Activa tu plan y conecta tus permisos para validar los pagos por QR al instante."
-            } else {
-                "Activa tu plan para validar los pagos por QR al instante."
-            },
-            action = "Activar plan · $24.900/mes",
-            onAction = onActivatePlan,
-        )
+        !planActive -> PlanPrompt(smsReady = smsReady, onActivate = onActivatePlan)
         else -> QuietEmptyPayments(todayish = todayish)
     }
+}
+
+@Composable
+private fun PlanPrompt(
+    smsReady: Boolean,
+    onActivate: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    PaymentsEmptyCluster(
+        modifier = modifier,
+        icon = Phosphor.Receipt,
+        iconTint = NoduqColors.muted,
+        title = "Validación automática inactiva",
+        body = if (!smsReady) {
+            "Activa tu plan y conecta tus permisos para validar los pagos por QR al instante."
+        } else {
+            "Activa tu plan para validar los pagos por QR al instante."
+        },
+        action = "Activar plan · $24.900/mes",
+        onAction = onActivate,
+    )
 }
 
 @Composable
@@ -718,8 +915,10 @@ private fun PaymentsEmptyCluster(
     onAction: () -> Unit,
     skip: String? = null,
     onSkip: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
 ) {
     Column(
+        modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {

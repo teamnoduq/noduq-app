@@ -11,6 +11,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
@@ -45,6 +46,19 @@ actual fun createHttpClient(): HttpClient = HttpClient(OkHttp) {
                 explicitNulls = false
             },
         )
+    }
+}
+
+actual fun createWebSocketClient(): HttpClient = HttpClient(OkHttp) {
+    engine {
+        config {
+            connectTimeout(15, TimeUnit.SECONDS)
+            readTimeout(0, TimeUnit.SECONDS)
+            writeTimeout(20, TimeUnit.SECONDS)
+        }
+    }
+    install(WebSockets) {
+        pingIntervalMillis = 15_000
     }
 }
 
@@ -111,6 +125,71 @@ actual fun localWeekStartIso(): String {
     return monday.atStartOfDay(ZONE).toInstant().toString()
 }
 
+actual fun localMonthStartIso(): String =
+    LocalDate.now(ZONE).withDayOfMonth(1).atStartOfDay(ZONE).toInstant().toString()
+
+actual fun localMonthName(): String = monthTitle(LocalDate.now(ZONE), includeYear = false)
+
+actual fun monthWindows(year: Int): List<MonthWindow> {
+    val today = LocalDate.now(ZONE)
+    val safeYear = if (year > today.year) today.year else year
+    val lastMonth = 12
+    val months = ArrayList<MonthWindow>()
+    var month = lastMonth
+    while (month >= 1) {
+        val start = LocalDate.of(safeYear, month, 1)
+        months += MonthWindow(
+            name = monthTitle(start, includeYear = false),
+            since = start.atStartOfDay(ZONE).toInstant().toString(),
+            untilExclusive = start.plusMonths(1).atStartOfDay(ZONE).toInstant().toString(),
+        )
+        month -= 1
+    }
+    return months
+}
+
+actual fun monthHeading(iso: String?): String {
+    val day = readInstant(iso)?.atZone(ZONE)?.toLocalDate() ?: return localMonthName()
+    return monthTitle(day, includeYear = false)
+}
+
+actual fun calendarYear(iso: String?): Int =
+    readInstant(iso)?.atZone(ZONE)?.year ?: LocalDate.now(ZONE).year
+
+actual fun yearWindows(earliestIso: String?): List<YearWindow> {
+    val currentYear = LocalDate.now(ZONE).year
+    val earliestYear = readInstant(earliestIso)?.atZone(ZONE)?.year ?: currentYear
+    val oldest = currentYear - 14
+    val start = when {
+        earliestYear > currentYear -> currentYear
+        earliestYear < oldest -> oldest
+        else -> earliestYear
+    }
+    val years = ArrayList<YearWindow>()
+    var year = currentYear
+    while (year >= start) {
+        val startDay = LocalDate.of(year, 1, 1)
+        years += YearWindow(
+            label = year.toString(),
+            since = startDay.atStartOfDay(ZONE).toInstant().toString(),
+            untilExclusive = startDay.plusYears(1).atStartOfDay(ZONE).toInstant().toString(),
+        )
+        year -= 1
+    }
+    return years
+}
+
+actual fun yearHeading(iso: String?): String {
+    val year = readInstant(iso)?.atZone(ZONE)?.year ?: LocalDate.now(ZONE).year
+    return year.toString()
+}
+
+private fun monthTitle(day: LocalDate, includeYear: Boolean): String {
+    val pattern = if (includeYear) "MMMM yyyy" else "MMMM"
+    val name = DateTimeFormatter.ofPattern(pattern, SPANISH).format(day)
+    return name.replaceFirstChar { if (it.isLowerCase()) it.titlecase(SPANISH) else it.toString() }
+}
+
 actual fun dayStartIsoFromUtcMillis(utcMillis: Long): String {
     val day = Instant.ofEpochMilli(utcMillis).atZone(ZoneOffset.UTC).toLocalDate()
     return day.atStartOfDay(ZONE).toInstant().toString()
@@ -131,12 +210,27 @@ actual fun longDateLabel(iso: String?): String {
     return LONG_DAY.format(moment.atZone(ZONE).toLocalDate())
 }
 
+actual fun shortDayLabel(iso: String?): String {
+    val moment = readInstant(iso) ?: return ""
+    return SHORT_DAY.format(moment.atZone(ZONE).toLocalDate())
+}
+
+actual fun historyFinishedLabel(iso: String?): String {
+    val moment = readInstant(iso) ?: return ""
+    val zoned = moment.atZone(ZONE)
+    val day = SYNC_DAY.format(zoned.toLocalDate())
+    val clock = CLOCK.format(zoned)
+    return "$day, $clock"
+}
+
 private val ZONE: ZoneId = ZoneId.systemDefault()
 private val SPANISH = Locale("es", "CO")
 private val CLOCK = DateTimeFormatter.ofPattern("h:mm a", SPANISH)
 private val DAY = DateTimeFormatter.ofPattern("d MMM", SPANISH)
 private val FILTER_DAY = DateTimeFormatter.ofPattern("d MMM yyyy", SPANISH)
 private val LONG_DAY = DateTimeFormatter.ofPattern("d 'de' MMMM 'de' yyyy", SPANISH)
+private val SHORT_DAY = DateTimeFormatter.ofPattern("d MMM yyyy", SPANISH)
+private val SYNC_DAY = DateTimeFormatter.ofPattern("d 'de' MMM 'de' yyyy", SPANISH)
 
 /** Tolerant on purpose: the server may spell instants as text or as epoch seconds. */
 private fun readInstant(iso: String?): Instant? {

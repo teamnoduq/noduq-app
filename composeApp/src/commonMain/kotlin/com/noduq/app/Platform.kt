@@ -106,6 +106,9 @@ expect fun takeEmailAuthPayload(): EmailAuthPayload?
 
 expect fun createHttpClient(): io.ktor.client.HttpClient
 
+/** A client that can stay open for the history channel. REST timeouts do not apply. */
+expect fun createWebSocketClient(): io.ktor.client.HttpClient
+
 expect fun isoInstant(millis: Long): String
 
 /** Epoch millis for an ISO instant, or -1 when it cannot be read. */
@@ -126,6 +129,47 @@ expect fun localDayEndExclusiveIso(daysAgo: Int): String
 /** Monday 00:00 local, this week. */
 expect fun localWeekStartIso(): String
 
+/** First day of the current local month, 00:00. */
+expect fun localMonthStartIso(): String
+
+/** "Septiembre" for the month filter. Follows the phone's date. */
+expect fun localMonthName(): String
+
+/** One calendar month the payments list can filter to. Newest months come first. */
+data class MonthWindow(
+    val name: String,
+    val since: String,
+    val untilExclusive: String,
+)
+
+/**
+ * Months of [year], January through December, newest last when read in order.
+ * Names only. [MonthWindow.untilExclusive] is the first instant of the next month.
+ */
+expect fun monthWindows(year: Int): List<MonthWindow>
+
+/** "Septiembre" for the month of a payment instant. Never includes the year. */
+expect fun monthHeading(iso: String?): String
+
+/** Calendar year of [iso], or the current year when it cannot be read. */
+expect fun calendarYear(iso: String?): Int
+
+/** One calendar year the payments list can filter to. Newest years come first. */
+data class YearWindow(
+    val label: String,
+    val since: String,
+    val untilExclusive: String,
+)
+
+/**
+ * Current year back to the year of [earliestIso]. Only the current year when that stamp is missing.
+ * [YearWindow.untilExclusive] is the first instant of the next year.
+ */
+expect fun yearWindows(earliestIso: String?): List<YearWindow>
+
+/** "2026" for the year of a payment instant, or the current year when it cannot be read. */
+expect fun yearHeading(iso: String?): String
+
 /** Start of the local day that contains this UTC epoch-milli (DatePicker). */
 expect fun dayStartIsoFromUtcMillis(utcMillis: Long): String
 
@@ -137,6 +181,12 @@ expect fun filterDateLabel(iso: String?): String
 
 /** "25 de septiembre de 2026" for the plan end date. */
 expect fun longDateLabel(iso: String?): String
+
+/** "1 ene. 2026" for a short history date. */
+expect fun shortDayLabel(iso: String?): String
+
+/** "27 de sep de 2026, 2:14 a. m." for when a sync finished. */
+expect fun historyFinishedLabel(iso: String?): String
 
 @androidx.compose.runtime.Composable
 expect fun BackNavigation(enabled: Boolean = true, onBack: () -> Unit)
