@@ -19,7 +19,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -30,6 +33,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -38,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -45,8 +50,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.noduq.app.AppViewModel
 import com.noduq.app.EmployeeSessionDto
+import com.noduq.app.EmployeeTab
+import com.noduq.app.PermissionState
 import com.noduq.app.Screen
 import com.noduq.app.formatEmployeeCode
+import com.noduq.app.needsAttention
 import com.noduq.app.theme.NoduqColors
 
 @Composable
@@ -120,6 +128,113 @@ fun EmployeeLoginScreen(vm: AppViewModel) {
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun EmployeeHomeScreen(vm: AppViewModel, tab: EmployeeTab) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(NoduqColors.night)
+            .statusBarsPadding(),
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 22.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BrandMark(compact = true)
+            Spacer(Modifier.weight(1f))
+            vm.employeeSession?.organization?.name?.let { ShopBadge(it) }
+        }
+        Box(Modifier.weight(1f)) {
+            when (tab) {
+                EmployeeTab.Pagos -> PaymentsScreen(vm, employee = true)
+                EmployeeTab.Cuenta -> EmployeeAccountScreen(vm)
+            }
+        }
+        EmployeeBottomBar(tab) { vm.go(Screen.EmployeeHome(it)) }
+    }
+}
+
+@Composable
+private fun EmployeeAccountScreen(vm: AppViewModel) {
+    LaunchedEffect(Unit) { vm.readPermissions() }
+    val username = vm.employeeSession?.employee?.username.orEmpty()
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 22.dp, vertical = 12.dp)
+            .padding(bottom = 36.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Text(
+            "Cuenta",
+            color = Color.White,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 32.sp,
+            letterSpacing = (-0.8).sp,
+        )
+        vm.error?.let { Banner(it) }
+        AccountCard("Usuario", "Lo define el dueño. Aquí no se cambia.") {
+            NoduqField(username, {}, "Usuario", enabled = false)
+        }
+        AccountCard(
+            "Permisos",
+            "Para que este teléfono avise cuando llegue un pago.",
+        ) {
+            PermissionStatusCard(
+                icon = Phosphor.Bell,
+                title = "Notificaciones",
+                detail = "Alertas para el mostrador",
+                granted = !vm.notificationsAllowed.needsAttention(),
+                grantLabel = vm.notificationsAllowed.accountGrantLabel(),
+                revokeLabel = if (vm.notificationsAllowed == PermissionState.Granted) "Quitar" else null,
+                busy = vm.busy,
+                onGrant = {
+                    if (vm.notificationsAllowed == PermissionState.Blocked) vm.openSystemSettings()
+                    else vm.askNotifications()
+                },
+                onRevoke = { vm.openSystemSettings() },
+            )
+        }
+        AccountCard("Sesión") {
+            GhostButton("Cerrar sesión", onClick = { vm.employeeSignOut() })
+        }
+    }
+}
+
+@Composable
+private fun EmployeeBottomBar(tab: EmployeeTab, onTab: (EmployeeTab) -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(NoduqColors.inset)
+            .windowInsetsPadding(WindowInsets.navigationBars),
+    ) {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(NoduqColors.line))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+        ) {
+            TabItem(
+                "Pagos",
+                Phosphor.ListBullets,
+                Phosphor.ListBulletsFill,
+                tab == EmployeeTab.Pagos,
+            ) { onTab(EmployeeTab.Pagos) }
+            TabItem(
+                "Cuenta",
+                Phosphor.UserCircle,
+                Phosphor.UserCircleFill,
+                tab == EmployeeTab.Cuenta,
+            ) { onTab(EmployeeTab.Cuenta) }
         }
     }
 }

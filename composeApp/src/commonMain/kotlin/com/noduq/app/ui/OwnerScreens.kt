@@ -105,6 +105,7 @@ fun OwnerShell(vm: AppViewModel, tab: OwnerTab) {
         Box(Modifier.weight(1f)) {
             when (tab) {
                 OwnerTab.Pagos -> PaymentsScreen(vm)
+                OwnerTab.Estadisticas -> StatsScreen(vm)
                 OwnerTab.Empleados -> EmployeesScreen(vm)
                 OwnerTab.Cuenta -> AccountScreen(vm)
             }
@@ -114,7 +115,7 @@ fun OwnerShell(vm: AppViewModel, tab: OwnerTab) {
 }
 
 @Composable
-private fun ShopBadge(name: String) {
+internal fun ShopBadge(name: String) {
     Row(
         Modifier
             .widthIn(max = 200.dp)
@@ -175,6 +176,12 @@ private fun OwnerBottomBar(tab: OwnerTab, onTab: (OwnerTab) -> Unit) {
                 tab == OwnerTab.Empleados,
             ) { onTab(OwnerTab.Empleados) }
             TabItem(
+                "Estadísticas",
+                NoduqIcons.Chart,
+                NoduqIcons.Chart,
+                tab == OwnerTab.Estadisticas,
+            ) { onTab(OwnerTab.Estadisticas) }
+            TabItem(
                 "Cuenta",
                 Phosphor.UserCircle,
                 Phosphor.UserCircleFill,
@@ -185,7 +192,7 @@ private fun OwnerBottomBar(tab: OwnerTab, onTab: (OwnerTab) -> Unit) {
 }
 
 @Composable
-private fun TabItem(
+internal fun TabItem(
     label: String,
     regular: ImageVector,
     fill: ImageVector,
@@ -198,7 +205,7 @@ private fun TabItem(
             .heightIn(min = 52.dp)
             .clip(RoundedCornerShape(16.dp))
             .clickable(role = Role.Tab, onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 6.dp),
+            .padding(horizontal = 6.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -212,13 +219,31 @@ private fun TabItem(
             label,
             color = color,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-            fontSize = 11.sp,
+            fontSize = 10.sp,
+            maxLines = 1,
         )
     }
 }
 
 @Composable
 fun EmployeesScreen(vm: AppViewModel) {
+    if (vm.workspace?.planActive() != true) {
+        Box(
+            Modifier.fillMaxSize().padding(horizontal = 32.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            PlanPrompt(
+                smsReady = !vm.needsSmsSetup(),
+                onActivate = { vm.buyPlan() },
+            )
+        }
+        return
+    }
+    EmployeesReady(vm)
+}
+
+@Composable
+private fun EmployeesReady(vm: AppViewModel) {
     LaunchedEffect(Unit) { vm.loadEmployees() }
     var createOpen by rememberSaveable { mutableStateOf(false) }
     var editing by rememberSaveable { mutableStateOf<String?>(null) }
@@ -1140,7 +1165,7 @@ private fun HistoryMetric(icon: ImageVector, label: String) {
 }
 
 @Composable
-private fun AccountCard(
+internal fun AccountCard(
     title: String,
     subtitle: String? = null,
     badge: String? = null,
@@ -1182,7 +1207,7 @@ private fun AccountCard(
 }
 
 @Composable
-private fun PermissionStatusCard(
+internal fun PermissionStatusCard(
     icon: ImageVector,
     title: String,
     detail: String,
@@ -1294,7 +1319,7 @@ private fun PermissionStatusCard(
     }
 }
 
-private fun PermissionState.accountGrantLabel(): String? = when (this) {
+internal fun PermissionState.accountGrantLabel(): String? = when (this) {
     PermissionState.Denied -> "Permitir"
     PermissionState.Blocked -> "Ajustes"
     PermissionState.Granted, PermissionState.NotNeeded -> null

@@ -12,6 +12,16 @@ interface GoogleAuth {
     suspend fun signIn(): SupabaseSession
 }
 
+/** Tips the phone remembers on its own. Logging out does not erase them. */
+interface UiMemory {
+    fun statsTipVisits(): Int
+    fun recordStatsTipVisit(): Int
+    fun statsTipDismissed(): Boolean
+    fun dismissStatsTip()
+    fun employeeOnboardDone(employeeId: String): Boolean
+    fun markEmployeeOnboardDone(employeeId: String)
+}
+
 interface TokenStore {
     fun ownerAccessToken(): String?
     fun ownerRefreshToken(): String?
@@ -89,6 +99,7 @@ data class PendingSms(
 object AppGraph {
     lateinit var config: AppConfig
     lateinit var tokens: TokenStore
+    lateinit var uiMemory: UiMemory
     lateinit var api: NoduqApi
     lateinit var supabase: SupabaseAuthApi
     lateinit var googleAuth: GoogleAuth
@@ -153,6 +164,9 @@ expect fun monthHeading(iso: String?): String
 
 /** Calendar year of [iso], or the current year when it cannot be read. */
 expect fun calendarYear(iso: String?): Int
+
+/** Month of [iso] from 1 to 12, or the current month when it cannot be read. */
+expect fun calendarMonth(iso: String?): Int
 
 /** One calendar year the payments list can filter to. Newest years come first. */
 data class YearWindow(

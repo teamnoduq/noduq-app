@@ -11,7 +11,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
-enum class OwnerTab { Pagos, Empleados, Cuenta }
+enum class OwnerTab { Pagos, Estadisticas, Empleados, Cuenta }
+
+enum class EmployeeTab { Pagos, Cuenta }
 
 sealed interface Screen {
     data object Boot : Screen
@@ -27,7 +29,8 @@ sealed interface Screen {
     data class OwnerOnboard(val step: Int) : Screen
     data class OwnerHome(val tab: OwnerTab = OwnerTab.Pagos) : Screen
     data object EmployeeLogin : Screen
-    data object EmployeeWait : Screen
+    data class EmployeeOnboard(val step: Int = 0) : Screen
+    data class EmployeeHome(val tab: EmployeeTab = EmployeeTab.Pagos) : Screen
 }
 
 internal const val OnboardLastStep = 7
@@ -76,6 +79,21 @@ class AppViewModel(
         private set
     var payMonthYear by mutableStateOf(calendarYear(null))
         private set
+    var statsGrain by mutableStateOf("month")
+        private set
+    var statsYear by mutableStateOf(calendarYear(null))
+        private set
+    var statsMonth by mutableStateOf(calendarMonth(null))
+        private set
+    var stats by mutableStateOf<StatsDto?>(null)
+        private set
+    var statsLoading by mutableStateOf(false)
+        private set
+    var statsError by mutableStateOf<String?>(null)
+        private set
+    var statsTipVisible by mutableStateOf(false)
+        private set
+    private var statsJob: Job? = null
     var payCount by mutableStateOf(0)
         private set
     var payTotal by mutableStateOf(0.0)
@@ -411,16 +429,21 @@ class AppViewModel(
                         )
                     }
                 } else {
-                    api.listEmployeePayments(employee!!)
+                    api.listEmployeePayments(
+                        employee!!,
+                        q = payQuery.ifBlank { null },
+                        since = paySince,
+                        until = payUntil,
+                    )
                 }
                 val newest = feed.notices.firstOrNull()
                 if (newest != null && newest.id != notices.firstOrNull()?.id && notices.isNotEmpty()) {
                     freshNotice = newest
                 }
                 notices = feed.notices
-                payCount = if (owner != null) feed.count else feed.notices.size
-                payTotal = if (owner != null) feed.totalAmount else feed.notices.mapNotNull { it.amount }.sum()
-                payHasMore = owner != null && feed.notices.size < feed.count
+                payCount = feed.count
+                payTotal = feed.totalAmount
+                payHasMore = feed.notices.size < feed.count
             } catch (cause: CancellationException) {
                 throw cause
             } catch (cause: Exception) {
@@ -432,15 +455,28 @@ class AppViewModel(
     }
 
     fun loadMorePayments() {
-        val owner = tokens.ownerAccessToken() ?: return
+        val owner = tokens.ownerAccessToken()
+        val employee = tokens.employeeToken()
+        if (owner == null && employee == null) return
         val last = notices.lastOrNull() ?: return
         if (!payHasMore || payLoadingMore || noticesLoading || payMoreJob?.isActive == true) return
         payMoreJob = viewModelScope.launch {
             payLoadingMore = true
             try {
-                val feed = asOwner {
-                    api.listPayments(
-                        it,
+                val feed = if (owner != null) {
+                    asOwner {
+                        api.listPayments(
+                            it,
+                            q = payQuery.ifBlank { null },
+                            since = paySince,
+                            until = payUntil,
+                            before = last.momentIso(),
+                            beforeId = last.id,
+                        )
+                    }
+                } else {
+                    api.listEmployeePayments(
+                        employee!!,
                         q = payQuery.ifBlank { null },
                         since = paySince,
                         until = payUntil,
@@ -508,6 +544,62 @@ class AppViewModel(
         loadPayments()
     }
 
+    fun chooseStatsGrain(grain: String) {
+        statsGrain = grain
+    }
+
+    fun chooseStatsMonth(month: Int) {
+        statsMonth = month
+        statsGrain = "month"
+    }
+
+    fun chooseStatsYear(year: Int) {
+        statsYear = year
+    }
+
+    /** Every visit opens on the current month. The tip counts only while the plan can show charts. */
+    fun openStats() {
+        statsGrain = "month"
+        statsYear = calendarYear(null)
+        statsMonth = calendarMonth(null)
+        val memory = AppGraph.uiMemory
+        val showTip = workspace?.planActive() == true &&
+            !memory.statsTipDismissed() &&
+            memory.statsTipVisits() < 3
+        if (showTip) memory.recordStatsTipVisit()
+        statsTipVisible = showTip
+    }
+
+    fun dismissStatsTip() {
+        AppGraph.uiMemory.dismissStatsTip()
+        statsTipVisible = false
+    }
+
+    fun loadStats() {
+        if (workspace?.planActive() != true) {
+            stats = null
+            statsLoading = false
+            return
+        }
+        if (tokens.ownerAccessToken() == null) return
+        statsJob?.cancel()
+        val year = statsYear
+        val month = if (statsGrain == "month") statsMonth else null
+        statsJob = viewModelScope.launch {
+            statsLoading = true
+            statsError = null
+            try {
+                stats = asOwner { api.paymentStats(it, year, month) }
+            } catch (cause: CancellationException) {
+                throw cause
+            } catch (cause: Exception) {
+                statsError = cause.message ?: "No se pudieron cargar las estadísticas."
+            } finally {
+                statsLoading = false
+            }
+        }
+    }
+
     private fun syncDevice() {
         viewModelScope.launch {
             runCatching { registerThisDevice(smsReader = readsBankSms) }
@@ -528,6 +620,7 @@ class AppViewModel(
             is Screen.OwnerResetSent -> go(Screen.OwnerForgotPassword)
             Screen.OwnerLogin, Screen.EmployeeLogin -> go(Screen.RoleGate)
             is Screen.OwnerOnboard -> onboardBack()
+            is Screen.EmployeeOnboard -> if (now.step > 0) go(Screen.EmployeeOnboard(now.step - 1))
             else -> Unit
         }
     }
@@ -779,9 +872,34 @@ class AppViewModel(
             val session = api.employeeLogin(user, formatted)
             tokens.saveEmployee(session.token)
             employeeSession = session
-            screen = Screen.EmployeeWait
-            onSessionReady()
+            openEmployee()
         }
+    }
+
+    fun employeeGrantNotifications() {
+        viewModelScope.launch {
+            try {
+                notificationsAllowed = AppGraph.permissions.requestNotifications()
+                syncDevice()
+            } finally {
+                go(Screen.EmployeeOnboard(2))
+            }
+        }
+    }
+
+    fun finishEmployeeOnboard() {
+        employeeSession?.employee?.id?.let { AppGraph.uiMemory.markEmployeeOnboardDone(it) }
+        go(Screen.EmployeeHome())
+    }
+
+    private fun openEmployee() {
+        val id = employeeSession?.employee?.id
+        val seen = id != null && AppGraph.uiMemory.employeeOnboardDone(id)
+        payRange = "hoy"
+        paySince = localDayStartIso(0)
+        payUntil = localDayEndExclusiveIso(0)
+        screen = if (seen) Screen.EmployeeHome() else Screen.EmployeeOnboard(0)
+        onSessionReady()
     }
 
     fun ownerSignOut() {
@@ -869,6 +987,7 @@ class AppViewModel(
             error = "Falta el comercio."
             return
         }
+        val here = screen as? Screen.OwnerHome
         launchWork("Activando…") {
             AppGraph.billing.logIn(orgId)
             val bought = AppGraph.billing.purchaseSmsMonthly()
@@ -878,6 +997,9 @@ class AppViewModel(
             workspace = workspace?.copy(plan = plan)
             if (tokens.onboardingStep() != null) {
                 goOnboard(7)
+            } else if (here != null) {
+                screen = here
+                onSessionReady()
             } else {
                 screen = ownerDestination()
                 if (screen is Screen.OwnerHome) onSessionReady()
@@ -1065,8 +1187,7 @@ class AppViewModel(
             }
             if (!employee.isNullOrBlank()) {
                 employeeSession = api.employeeMe(employee)
-                screen = Screen.EmployeeWait
-                onSessionReady()
+                openEmployee()
                 return
             }
             screen = Screen.RoleGate
@@ -1210,6 +1331,14 @@ class AppViewModel(
         payMonthLabel = localMonthName()
         payYearLabel = calendarYear(null).toString()
         payMonthYear = calendarYear(null)
+        statsGrain = "month"
+        statsYear = calendarYear(null)
+        statsMonth = calendarMonth(null)
+        stats = null
+        statsLoading = false
+        statsError = null
+        statsTipVisible = false
+        statsJob?.cancel()
         payCount = 0
         payTotal = 0.0
         payHasMore = false

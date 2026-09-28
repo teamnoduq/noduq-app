@@ -12,6 +12,7 @@ class NoduqApplication : Application() {
         val http = createHttpClient()
         AppGraph.config = AndroidAppConfig
         AppGraph.tokens = AndroidTokenStore(this)
+        AppGraph.uiMemory = AndroidUiMemory(this)
         AppGraph.clipboard = AndroidClipboard(this)
         AppGraph.links = AndroidLinkOpener(this)
         AppGraph.paymentAlerts = AndroidLocalPaymentAlerts(this)

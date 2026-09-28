@@ -85,6 +85,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.noduq.app.AppViewModel
+import com.noduq.app.Screen
 import com.noduq.app.motionEnabled
 import com.noduq.app.needsAttention
 import com.noduq.app.planActive
@@ -96,6 +97,7 @@ import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.painterResource
 
 private const val ONBOARD_STEPS = 8
+private const val EMPLOYEE_ONBOARD_STEPS = 3
 private const val DefaultShopPreview = "MI NEGOCIO"
 private const val NoticePayer = "RONALDINHO ORTEGA RUIZ"
 
@@ -208,6 +210,191 @@ private fun StepBody(
 private val NoticeFill = Color(0xFF0F171A)
 private val NoticeLine = Color.White.copy(alpha = 0.10f)
 private const val FlowCycleMs = 3000
+
+@Composable
+fun EmployeeOnboardScreen(vm: AppViewModel, step: Int) {
+    val progress by animateFloatAsState(
+        targetValue = (step + 1f) / EMPLOYEE_ONBOARD_STEPS,
+        animationSpec = tween(420, easing = NoduqMotion.easeOut),
+        label = "employee-onboard-progress",
+    )
+    Column(
+        Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .imePadding(),
+    ) {
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier.fillMaxWidth().height(3.dp),
+            color = NoduqColors.cyan,
+            trackColor = NoduqColors.line,
+            strokeCap = StrokeCap.Butt,
+            drawStopIndicator = {},
+        )
+        Row(
+            Modifier.padding(start = 10.dp, top = 4.dp, end = 22.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (step > 0) BackIconButton(onClick = { vm.back() })
+            BrandMark(compact = true)
+        }
+        AnimatedContent(
+            targetState = step,
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            transitionSpec = {
+                if (!motionEnabled()) {
+                    fadeIn() togetherWith fadeOut()
+                } else {
+                    val forward = targetState >= initialState
+                    val enterX = { w: Int -> if (forward) w else -w }
+                    val exitX = { w: Int -> if (forward) -w / 3 else w / 3 }
+                    (
+                        slideInHorizontally(tween(NoduqMotion.screenMs, easing = NoduqMotion.easeOut), enterX) +
+                            fadeIn(tween(NoduqMotion.fadeMs))
+                        ) togetherWith (
+                        slideOutHorizontally(tween(NoduqMotion.fadeMs, easing = NoduqMotion.easeOut), exitX) +
+                            fadeOut(tween(NoduqMotion.fadeMs))
+                        )
+                }
+            },
+            label = "employee-onboard-step",
+        ) { page ->
+            when (page) {
+                0 -> EmployeeWelcomeStep { vm.go(Screen.EmployeeOnboard(1)) }
+                1 -> EmployeeNotificationsStep(vm)
+                else -> EmployeeFarewellStep(vm)
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmployeeWelcomeStep(onStart: () -> Unit) {
+    StepBody(
+        title = "Aquí ves los pagos del mostrador.",
+        lede = "Cuando alguien paga el QR del negocio, el aviso llega a este teléfono. No tienes que preguntarle al dueño si ya cayó.",
+        art = { TillRingCard() },
+        footer = {
+            PrimaryButton("Continuar", hero = true, onClick = onStart)
+        },
+    )
+}
+
+@Composable
+private fun EmployeeNotificationsStep(vm: AppViewModel) {
+    var skipConfirm by remember { mutableStateOf(false) }
+    StepBody(
+        title = "Activa las notificaciones",
+        lede = "Así este teléfono suena cuando llega un pago, aunque estés en otra aplicación.",
+        art = { TillRingCard() },
+        footer = {
+            vm.error?.let { Banner(it) }
+            PrimaryButton(
+                "Permitir notificaciones",
+                loading = vm.busy,
+                hero = true,
+                onClick = { vm.employeeGrantNotifications() },
+            )
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                DiscreteSkipLink("Ahora no") { skipConfirm = true }
+            }
+        },
+    )
+    if (skipConfirm) {
+        NoduqDialog(onDismiss = { skipConfirm = false }) {
+            Box(
+                Modifier
+                    .size(52.dp)
+                    .clip(CircleShape)
+                    .background(NoduqColors.cyan.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Phosphor.WarningCircle, null, tint = NoduqColors.cyan, modifier = Modifier.size(26.dp))
+            }
+            Text(
+                "¿Seguro que quieres omitir?",
+                color = Color.White,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 20.sp,
+                lineHeight = 26.sp,
+            )
+            Text(
+                "Sin notificaciones, el pago igual queda en la lista, pero el teléfono no suena.",
+                color = NoduqColors.muted,
+                fontSize = 15.sp,
+                lineHeight = 22.sp,
+            )
+            PrimaryButton(
+                "Entendido, activar notificaciones",
+                loading = vm.busy,
+                onClick = {
+                    skipConfirm = false
+                    vm.employeeGrantNotifications()
+                },
+            )
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                DiscreteSkipLink("Continuar de todos modos") {
+                    skipConfirm = false
+                    vm.go(Screen.EmployeeOnboard(2))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmployeeFarewellStep(vm: AppViewModel) {
+    var checks by remember { mutableIntStateOf(0) }
+    val lines = listOf(
+        "Sesión del mostrador" to true,
+        "Notificaciones" to !vm.notificationsAllowed.needsAttention(),
+    )
+    LaunchedEffect(Unit) {
+        lines.indices.forEach { i ->
+            delay(380)
+            checks = i + 1
+        }
+    }
+    val revealed = checks >= lines.size
+    StepBody(
+        title = "Listo para el mostrador",
+        lede = "Desde ahora ves los pagos que te corresponden. Si llega uno nuevo, te avisamos.",
+        art = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                lines.forEachIndexed { i, (line, done) ->
+                    val on = i < checks && done
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(NoduqColors.card)
+                            .padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Icon(
+                            Phosphor.Check,
+                            null,
+                            tint = if (on) NoduqColors.ok else NoduqColors.muted.copy(alpha = 0.35f),
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Text(line, color = if (on) Color.White else NoduqColors.muted, fontSize = 16.sp)
+                    }
+                }
+            }
+        },
+        footer = {
+            PrimaryButton(
+                "Ver pagos",
+                hero = true,
+                enabled = revealed,
+                onClick = { vm.finishEmployeeOnboard() },
+            )
+        },
+    )
+}
 
 @Composable
 private fun WelcomeStep(onStart: () -> Unit) {

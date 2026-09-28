@@ -89,6 +89,11 @@ class NoduqApi(
         return request("GET", "/v1/payments?$query", token)
     }
 
+    suspend fun paymentStats(token: String, year: Int, month: Int?): StatsDto {
+        val query = if (month == null) "year=$year" else "year=$year&month=$month"
+        return request("GET", "/v1/payments/stats?$query", token)
+    }
+
     suspend fun ingestSms(token: String, body: SmsIngestRequest): SmsIngestResponseDto =
         request("POST", "/v1/payments/sms", token, body)
 
@@ -130,8 +135,27 @@ class NoduqApi(
         request<Unit>("POST", "/v1/devices/forget", token, ForgetDeviceRequest(pushToken), empty = true)
     }
 
-    suspend fun listEmployeePayments(token: String, limit: Int = 30): PaymentFeedDto =
-        request("GET", "/v1/employee/payments?limit=$limit", token)
+    suspend fun listEmployeePayments(
+        token: String,
+        limit: Int = 40,
+        q: String? = null,
+        since: String? = null,
+        until: String? = null,
+        before: String? = null,
+        beforeId: String? = null,
+    ): PaymentFeedDto {
+        val query = buildList {
+            add("limit=$limit")
+            if (!q.isNullOrBlank()) add("q=${q.trim().encodeURLParameter()}")
+            if (!since.isNullOrBlank()) add("since=${since.encodeURLParameter()}")
+            if (!until.isNullOrBlank()) add("until=${until.encodeURLParameter()}")
+            if (!before.isNullOrBlank() && !beforeId.isNullOrBlank()) {
+                add("before=${before.encodeURLParameter()}")
+                add("beforeId=${beforeId.encodeURLParameter()}")
+            }
+        }.joinToString("&")
+        return request("GET", "/v1/employee/payments?$query", token)
+    }
 
     suspend fun registerEmployeeDevice(token: String, body: RegisterEmployeeDeviceRequest): DeviceDto =
         request("POST", "/v1/employee/devices", token, body)

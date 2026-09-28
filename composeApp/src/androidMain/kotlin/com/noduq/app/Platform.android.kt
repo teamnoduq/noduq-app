@@ -156,6 +156,9 @@ actual fun monthHeading(iso: String?): String {
 actual fun calendarYear(iso: String?): Int =
     readInstant(iso)?.atZone(ZONE)?.year ?: LocalDate.now(ZONE).year
 
+actual fun calendarMonth(iso: String?): Int =
+    readInstant(iso)?.atZone(ZONE)?.monthValue ?: LocalDate.now(ZONE).monthValue
+
 actual fun yearWindows(earliestIso: String?): List<YearWindow> {
     val currentYear = LocalDate.now(ZONE).year
     val earliestYear = readInstant(earliestIso)?.atZone(ZONE)?.year ?: currentYear
@@ -296,6 +299,47 @@ class AndroidPendingSmsStore(context: Context) : PendingSmsStore {
         const val KEY = "waiting"
         const val MAX = 50
         val json = Json { ignoreUnknownKeys = true }
+    }
+}
+
+class AndroidUiMemory(context: Context) : UiMemory {
+    private val prefs = context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+
+    override fun statsTipVisits(): Int = prefs.getInt(VISITS, 0)
+
+    override fun recordStatsTipVisit(): Int {
+        val next = statsTipVisits() + 1
+        prefs.edit().putInt(VISITS, next).apply()
+        return next
+    }
+
+    override fun statsTipDismissed(): Boolean = prefs.getBoolean(DISMISSED, false)
+
+    override fun dismissStatsTip() {
+        prefs.edit().putBoolean(DISMISSED, true).apply()
+    }
+
+    override fun employeeOnboardDone(employeeId: String): Boolean =
+        employeeOnboardIds().contains(employeeId)
+
+    override fun markEmployeeOnboardDone(employeeId: String) {
+        val next = employeeOnboardIds() + employeeId
+        prefs.edit().putString(EMPLOYEE_ONBOARD, next.joinToString(",")).apply()
+    }
+
+    private fun employeeOnboardIds(): Set<String> =
+        prefs.getString(EMPLOYEE_ONBOARD, "")
+            .orEmpty()
+            .split(',')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .toSet()
+
+    private companion object {
+        const val FILE = "noduq_ui"
+        const val VISITS = "stats_tip_visits"
+        const val DISMISSED = "stats_tip_dismissed"
+        const val EMPLOYEE_ONBOARD = "employee_onboard_done"
     }
 }
 

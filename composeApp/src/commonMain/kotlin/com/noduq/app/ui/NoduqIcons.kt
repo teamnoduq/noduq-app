@@ -249,6 +249,93 @@ object NoduqIcons {
         }
     }
 
+    val HandTap: ImageVector by lazy {
+        strokeIcon("noduq.handTap") {
+            moveTo(8.5f, 11.5f)
+            verticalLineTo(5f)
+            arcTo(1.75f, 1.75f, 0f, true, true, 12f, 5f)
+            verticalLineTo(11f)
+            moveTo(12f, 10.5f)
+            verticalLineTo(8f)
+            arcTo(1.75f, 1.75f, 0f, true, true, 15.5f, 8f)
+            verticalLineTo(16f)
+            arcTo(5.5f, 5.5f, 0f, false, true, 4.2f, 14.2f)
+            verticalLineTo(12.2f)
+            arcTo(1.6f, 1.6f, 0f, true, true, 7.4f, 12f)
+            lineTo(8.5f, 13f)
+            moveTo(17.2f, 4.6f)
+            lineTo(19.4f, 2.4f)
+            moveTo(18.8f, 8.2f)
+            horizontalLineTo(21.2f)
+        }
+    }
+
+    val Calculator: ImageVector by lazy {
+        strokeIcon("noduq.calculator") {
+            moveTo(6f, 3f)
+            horizontalLineTo(18f)
+            arcTo(2f, 2f, 0f, false, true, 20f, 5f)
+            verticalLineTo(19f)
+            arcTo(2f, 2f, 0f, false, true, 18f, 21f)
+            horizontalLineTo(6f)
+            arcTo(2f, 2f, 0f, false, true, 4f, 19f)
+            verticalLineTo(5f)
+            arcTo(2f, 2f, 0f, false, true, 6f, 3f)
+            close()
+            moveTo(8f, 7f)
+            horizontalLineTo(16f)
+            moveTo(8f, 12f)
+            horizontalLineTo(8.01f)
+            moveTo(12f, 12f)
+            horizontalLineTo(12.01f)
+            moveTo(16f, 12f)
+            horizontalLineTo(16.01f)
+            moveTo(8f, 16.5f)
+            horizontalLineTo(8.01f)
+            moveTo(12f, 16.5f)
+            horizontalLineTo(12.01f)
+            moveTo(16f, 16.5f)
+            horizontalLineTo(16.01f)
+        }
+    }
+
+    val TrendingDown: ImageVector by lazy {
+        strokeIcon("noduq.trendingDown") {
+            moveTo(22f, 17f)
+            lineTo(13.5f, 8.5f)
+            lineTo(8.5f, 13.5f)
+            lineTo(2f, 7f)
+            moveTo(16f, 17f)
+            horizontalLineTo(22f)
+            verticalLineTo(11f)
+        }
+    }
+
+    val TrendingUp: ImageVector by lazy {
+        strokeIcon("noduq.trendingUp") {
+            moveTo(22f, 7f)
+            lineTo(13.5f, 15.5f)
+            lineTo(8.5f, 10.5f)
+            lineTo(2f, 17f)
+            moveTo(16f, 7f)
+            horizontalLineTo(22f)
+            verticalLineTo(13f)
+        }
+    }
+
+    val Chart: ImageVector by lazy {
+        strokeIcon("noduq.chart") {
+            moveTo(4f, 20f)
+            lineTo(20f, 20f)
+            moveTo(7f, 20f)
+            lineTo(7f, 11f)
+            moveTo(12f, 20f)
+            lineTo(12f, 4f)
+            moveTo(17f, 20f)
+            lineTo(17f, 14f)
+        }
+    }
+
     val Clock: ImageVector by lazy {
         strokeIcon("noduq.clock") {
             moveTo(12f, 2f)

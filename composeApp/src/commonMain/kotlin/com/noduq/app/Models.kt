@@ -159,6 +159,38 @@ data class SmsIngestResponseDto(
 )
 
 @Serializable
+data class StatsPointDto(
+    val key: String = "",
+    val label: String = "",
+    val detail: String = "",
+    val count: Long = 0,
+    val amount: Double = 0.0,
+)
+
+@Serializable
+data class StatsDto(
+    val grain: String = "day",
+    val year: Int = 0,
+    val month: Int? = null,
+    val bucketCount: Int = 0,
+    val count: Long = 0,
+    val amount: Double = 0.0,
+    val uniquePayers: Long = 0,
+    val averageCount: Double = 0.0,
+    val averageAmount: Double = 0.0,
+    val averagePerPayment: Double = 0.0,
+    val previousCount: Long = 0,
+    val previousAmount: Double = 0.0,
+    val countChangePercent: Double? = null,
+    val amountChangePercent: Double? = null,
+    val peak: StatsPointDto? = null,
+    val low: StatsPointDto? = null,
+    val bucketsWithSales: Int = 0,
+    val bucketsEmpty: Int = 0,
+    val points: List<StatsPointDto> = emptyList(),
+)
+
+@Serializable
 data class HistoryStatusDto(
     val status: String = "available",
     val windowFrom: String? = null,

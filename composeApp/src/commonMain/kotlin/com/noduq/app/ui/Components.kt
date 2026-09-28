@@ -15,6 +15,8 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -419,18 +421,27 @@ fun ChipButton(
     }
 }
 
+data class TrailingFilterChip(
+    val label: String,
+    val selected: Boolean,
+    val onClick: () -> Unit,
+)
+
 @Composable
 fun SlidingFilterChips(
     options: List<Pair<String, String>>,
     selected: String,
     onSelect: (String) -> Unit,
     modifier: Modifier = Modifier,
+    scrollable: Boolean = false,
+    trailing: List<TrailingFilterChip> = emptyList(),
 ) {
     val density = LocalDensity.current
     val motion = motionEnabled()
     val spots = remember { mutableStateMapOf<String, Pair<Float, Float>>() }
     val pillX = remember { Animatable(0f) }
     val pillW = remember { Animatable(0f) }
+    val scroll = rememberScrollState()
     val target = spots[selected]
     LaunchedEffect(selected, target?.first, target?.second, motion) {
         val left = target?.first ?: return@LaunchedEffect
@@ -443,7 +454,11 @@ fun SlidingFilterChips(
             launch { pillW.animateTo(width, tween(NoduqMotion.selectMs, easing = NoduqMotion.easeOut)) }
         }
     }
-    Box(modifier.fillMaxWidth()) {
+    Box(
+        modifier
+            .fillMaxWidth()
+            .then(if (scrollable) Modifier.horizontalScroll(scroll) else Modifier),
+    ) {
         if (pillW.value > 0f) {
             Box(
                 Modifier
@@ -474,6 +489,14 @@ fun SlidingFilterChips(
                     },
                 )
             }
+            trailing.forEach { chip ->
+                FilterChipLabel(
+                    label = chip.label,
+                    selected = chip.selected,
+                    onClick = chip.onClick,
+                    ownFill = chip.selected,
+                )
+            }
         }
     }
 }
@@ -484,6 +507,7 @@ private fun FilterChipLabel(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    ownFill: Boolean = false,
 ) {
     val color by animateColorAsState(
         targetValue = if (selected) NoduqColors.night else Color.White,
@@ -497,8 +521,11 @@ private fun FilterChipLabel(
             .heightIn(min = 40.dp)
             .clip(shape)
             .then(
-                if (selected) Modifier
-                else Modifier.border(1.dp, NoduqColors.cyan.copy(alpha = 0.4f), shape),
+                when {
+                    ownFill -> Modifier.background(NoduqColors.cyan)
+                    selected -> Modifier
+                    else -> Modifier.border(1.dp, NoduqColors.cyan.copy(alpha = 0.4f), shape)
+                },
             )
             .clickable(
                 interactionSource = interaction,

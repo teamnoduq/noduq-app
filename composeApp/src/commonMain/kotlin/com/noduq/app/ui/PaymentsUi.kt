@@ -71,11 +71,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.noduq.app.HistoryStatusDto
-import com.noduq.app.OwnerTab
 import com.noduq.app.AppViewModel
 import com.noduq.app.PaymentNoticeDto
 import com.noduq.app.PermissionState
-import com.noduq.app.Screen
 import com.noduq.app.clockLabel
 import com.noduq.app.dayStartIsoFromUtcMillis
 import com.noduq.app.filterDateLabel
@@ -98,7 +96,8 @@ import com.noduq.app.whoPaid
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PaymentsScreen(vm: AppViewModel) {
+fun PaymentsScreen(vm: AppViewModel, employee: Boolean = false) {
+    val lookback = employeeLookback(vm.employeeSession?.employee?.lookbackDays)
     LaunchedEffect(Unit) {
         vm.loadPayments()
         vm.loadGmail()
@@ -122,6 +121,7 @@ fun PaymentsScreen(vm: AppViewModel) {
     val heading = when (vm.payRange) {
         "ayer" -> "Pagos de ayer"
         "hoy" -> "Pagos de hoy"
+        "ventana" -> "Últimos $lookback días"
         else -> "Pagos"
     }
 
@@ -225,7 +225,7 @@ fun PaymentsScreen(vm: AppViewModel) {
             )
             Spacer(Modifier.height(16.dp))
             SlidingFilterChips(
-                options = listOf(
+                options = if (employee) employeeFilterOptions(lookback) else listOf(
                     "hoy" to "Hoy",
                     "ayer" to "Ayer",
                     "mes" to vm.payMonthLabel,
@@ -237,9 +237,14 @@ fun PaymentsScreen(vm: AppViewModel) {
                     when (id) {
                         "hoy" -> vm.applyPayRange("hoy", localDayStartIso(0), localDayEndExclusiveIso(0))
                         "ayer" -> vm.applyPayRange("ayer", localDayStartIso(1), localDayEndExclusiveIso(1))
-                        "mes" -> monthSheet = true
-                        "anio" -> yearSheet = true
-                        else -> vm.applyPayRange("todos", null, null)
+                        "ventana" -> vm.applyPayRange(
+                            "ventana",
+                            localDayStartIso(lookback - 1),
+                            localDayEndExclusiveIso(0),
+                        )
+                        "mes" -> if (!employee) monthSheet = true
+                        "anio" -> if (!employee) yearSheet = true
+                        else -> if (!employee) vm.applyPayRange("todos", null, null)
                     }
                 },
             )
@@ -255,9 +260,9 @@ fun PaymentsScreen(vm: AppViewModel) {
                 )
             }
             val history = vm.paymentHistory
-            val planOn = vm.workspace?.planActive() == true
+            val planOn = !employee && vm.workspace?.planActive() == true
             val showHistoryOffer = planOn && history?.status == "available"
-            val showHistoryProgress = history?.status == "running"
+            val showHistoryProgress = !employee && history?.status == "running"
             if (history?.status == "running") {
                 Spacer(Modifier.height(16.dp))
                 HistoryProgressCard(history, vm.historyNote, vm::dismissHistoryNote)
@@ -308,6 +313,9 @@ fun PaymentsScreen(vm: AppViewModel) {
                     Modifier.fillMaxSize().padding(horizontal = 32.dp),
                     contentAlignment = Alignment.Center,
                 ) {
+                    if (employee) {
+                        QuietEmptyPayments(todayish = vm.payRange == "hoy" || vm.payRange == "ventana")
+                    } else {
                     val gmail = vm.gmail
                     EmptyPayments(
                         todayish = vm.payRange == "todos" || vm.payRange == "hoy",
@@ -317,10 +325,7 @@ fun PaymentsScreen(vm: AppViewModel) {
                             gmail.configured &&
                             !gmail.connected &&
                             !vm.mailPromptDismissed,
-                        onActivatePlan = {
-                            vm.go(Screen.OwnerHome(OwnerTab.Cuenta))
-                            vm.buyPlan()
-                        },
+                        onActivatePlan = { vm.buyPlan() },
                         onGrantSms = {
                             if (vm.smsAllowed == PermissionState.Blocked) vm.openSystemSettings()
                             else vm.askSms()
@@ -328,6 +333,7 @@ fun PaymentsScreen(vm: AppViewModel) {
                         onConnectMail = vm::connectGmail,
                         onSkipMail = vm::dismissMailPrompt,
                     )
+                    }
                 }
                 else -> {
                     val listState = rememberLazyListState()
@@ -351,15 +357,12 @@ fun PaymentsScreen(vm: AppViewModel) {
                             .padding(horizontal = 22.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        if (vm.workspace?.planActive() != true) {
+                        if (!employee && vm.workspace?.planActive() != true) {
                             item(key = "plan-prompt") {
                                 PlanPrompt(
                                     modifier = Modifier.padding(top = 36.dp),
                                     smsReady = !vm.needsSmsSetup(),
-                                    onActivate = {
-                                        vm.go(Screen.OwnerHome(OwnerTab.Cuenta))
-                                        vm.buyPlan()
-                                    },
+                                    onActivate = { vm.buyPlan() },
                                 )
                             }
                         }
@@ -814,7 +817,7 @@ private fun NotificationListenBanner(onActivate: () -> Unit, onDismiss: () -> Un
 }
 
 @Composable
-private fun ChoiceList(
+internal fun ChoiceList(
     items: List<Pair<String, () -> Unit>>,
     chosen: String,
 ) {
@@ -885,7 +888,7 @@ private fun EmptyPayments(
 }
 
 @Composable
-private fun PlanPrompt(
+internal fun PlanPrompt(
     smsReady: Boolean,
     onActivate: () -> Unit,
     modifier: Modifier = Modifier,
@@ -962,6 +965,21 @@ private fun PaymentsEmptyCluster(
             }
         }
     }
+}
+
+private fun employeeLookback(days: Int?): Int = when (days) {
+    7 -> 7
+    3 -> 3
+    else -> 1
+}
+
+private fun employeeFilterOptions(lookback: Int): List<Pair<String, String>> {
+    val options = mutableListOf("hoy" to "Hoy")
+    if (lookback >= 3) {
+        options += "ayer" to "Ayer"
+        options += "ventana" to "$lookback días"
+    }
+    return options
 }
 
 @Composable
